@@ -1,7 +1,7 @@
 // Prezzi in USD per milione di token (listino Anthropic, ottobre 2026).
 // Poiché 1 $ = 1e6 micro-USD, costo_micros = token × prezzo_per_MTok.
 
-interface ModelPrice {
+export interface ModelPrice {
   input: number;
   output: number;
   cacheRead: number;
@@ -16,6 +16,11 @@ const PRICES: Record<string, ModelPrice> = {
   "claude-opus-4-8": { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
 };
 
+/** Registra il prezzo di un modello configurato a runtime (es. Gemini via env). */
+export function setModelPrice(model: string, price: ModelPrice): void {
+  PRICES[model] = price;
+}
+
 // Per modelli sconosciuti (es. un fallback nuovo) si stima per eccesso.
 const CONSERVATIVE: ModelPrice = { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 };
 
@@ -27,7 +32,8 @@ export interface TokenUsage {
 }
 
 export function costMicros(model: string, usage: TokenUsage): number {
-  const p = PRICES[model] ?? CONSERVATIVE;
+  // `modelVersion` di Gemini può avere un suffisso: si cerca anche per prefisso.
+  const p = PRICES[model] ?? Object.entries(PRICES).find(([id]) => model.startsWith(id))?.[1] ?? CONSERVATIVE;
   return Math.ceil(
     usage.inputTokens * p.input +
       usage.outputTokens * p.output +

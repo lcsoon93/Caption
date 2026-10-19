@@ -194,7 +194,8 @@ pnpm mobile                               # Metro con dev client
 
 | Variabile | Obbl. | Default | Descrizione |
 | --- | --- | --- | --- |
-| `ANTHROPIC_API_KEY` | ✓ | | Chiave API Anthropic (solo server) |
+| `AI_PROVIDER` | | `anthropic` | `gemini` solo per sviluppo/test (vedi sotto) |
+| `ANTHROPIC_API_KEY` | ✓¹ | | Chiave API Anthropic (solo server) |
 | `ANTHROPIC_MODEL` | | `claude-sonnet-5-5` | Modello |
 | `ANTHROPIC_EFFORT` | | `low` | `low` / `medium` / `high` |
 | `ANTHROPIC_THINKING` | | `adaptive` | `between_tools` disattiva il ragionamento (latenza minima) |
@@ -204,6 +205,17 @@ pnpm mobile                               # Metro con dev client
 | `REVENUECAT_SECRET_API_KEY` | ✓ | | Secret API key v1 |
 | `REVENUECAT_WEBHOOK_AUTH` | ✓ | | Segreto condiviso del webhook |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | auto | | Iniettate da Supabase |
+| `GEMINI_API_KEY` | ✓² | | Chiave Google AI Studio |
+| `GEMINI_MODEL` | | `gemini-3.8-flash` | Modello Gemini |
+| `GEMINI_THINKING_LEVEL` | | `LOW` | `MINIMAL` / `LOW` / `MEDIUM` / `HIGH` |
+| `GEMINI_PRICE_INPUT_PER_MTOK`, `GEMINI_PRICE_OUTPUT_PER_MTOK` | | `0` | Prezzi per il contatore costi (0 = piano gratuito) |
+
+¹ con `AI_PROVIDER=anthropic` · ² con `AI_PROVIDER=gemini`
+
+**Gemini è solo per sviluppo e test.** Il piano gratuito consente a Google di usare i testi
+inviati per migliorare i propri prodotti: non usarlo con utenti reali. Il prompt è calibrato
+per Claude, quindi qualità e tempi con Gemini non sono indicativi del prodotto finale.
+Per tornare a Claude: `AI_PROVIDER=anthropic` (o rimuovi la variabile) e imposta `ANTHROPIC_API_KEY`.
 
 ### App (`EXPO_PUBLIC_*`, finiscono nel bundle: solo valori pubblici)
 
@@ -288,7 +300,7 @@ Se la p95 supera i 7 s, imposta `ANTHROPIC_THINKING=between_tools`.
 ## Test
 
 ```bash
-pnpm functions:test      # 28 test unitari (handler, piani, RevenueCat, webhook, post-processing)
+pnpm functions:test      # 30 test unitari (handler, piani, RevenueCat, webhook, post-processing)
 pnpm functions:check     # typecheck Deno
 pnpm db:test             # migrazioni + test SQL su Postgres usa-e-getta (RLS, quote, rimborsi, budget)
 pnpm typecheck           # app + shared
