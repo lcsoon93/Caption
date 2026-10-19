@@ -1,0 +1,24 @@
+{
+  "name": "caption-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.18.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "mobile": "pnpm --filter @caption/mobile start",
+    "typecheck": "pnpm -r typecheck",
+    "functions:check": "cd supabase/functions && deno task check",
+    "functions:test": "cd supabase/functions && deno task test",
+    "functions:serve": "supabase functions serve --env-file supabase/functions/.env",
+    "db:start": "supabase start",
+    "db:reset": "supabase db reset",
+    "db:test": "bash supabase/tests/run-local.sh",
+    "deploy:functions": "supabase functions deploy generate-captions && supabase functions deploy sync-subscription && supabase functions deploy delete-account && supabase functions deploy revenuecat-webhook --no-verify-jwt"
+  },
+  "devDependencies": {
+    "supabase": "^2.121.0",
+    "typescript": "~6.0.3"
+  }
+}

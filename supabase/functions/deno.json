@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true
+  },
+  "tasks": {
+    "check": "deno check generate-captions/index.ts revenuecat-webhook/index.ts sync-subscription/index.ts delete-account/index.ts",
+    "test": "deno test --allow-env tests/",
+    "lint": "deno lint && deno fmt --check"
+  },
+  "fmt": {
+    "lineWidth": 120
+  },
+  "lint": {
+    "rules": {
+      "exclude": ["no-import-prefix"]
+    }
+  }
+}
