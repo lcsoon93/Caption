@@ -20,11 +20,18 @@ pronte da copiare, rifinire o condividere. Solo abbonamento: **nessun piano free
 ```
 .
 ├── apps/mobile/                  App Expo
-│   ├── app/                      Schermate (expo-router): gate, login, paywall, home
+│   ├── app/                      Schermate (expo-router)
+│   │   ├── index.tsx             Gate: onboarding → login → paywall → app
+│   │   ├── onboarding.tsx        3 slide (valore, esempio, azione)
+│   │   ├── sign-in.tsx           Apple, Google (OAuth PKCE), email OTP
+│   │   ├── paywall.tsx           Paywall custom: gate / rinnovo / upgrade
+│   │   └── (tabs)/               Crea · Storico · Account
 │   └── src/
-│       ├── lib/                  supabase, api (client tipizzato), purchases (RevenueCat), env
-│       ├── providers/            SessionProvider (sessione + stato abbonamento)
-│       └── theme/                Design tokens (dark-first)
+│       ├── components/           CaptionCard, Chip, Button, UsageMeter, Banner, Skeleton…
+│       ├── hooks/                useCaptionGenerator (generazione + rifinitura)
+│       ├── lib/                  supabase, api, auth, purchases, analytics, storage
+│       ├── providers/            SessionProvider (sessione + abbonamento), UpgradeProvider (upsell)
+│       └── theme/                Design tokens (dark-first) + light mode
 ├── packages/shared/              @caption/shared → re-esporta il dominio per l'app
 ├── supabase/
 │   ├── config.toml               Config CLI (auth, funzioni, verify_jwt)
@@ -149,7 +156,8 @@ pnpm deploy:functions             # revenuecat-webhook è deployata con --no-ver
 
 Da dashboard: abilita **pg_cron** (Database → Extensions) e riesegui la migrazione
 `20261019000100_maintenance_cron.sql`, oppure schedula `select public.run_maintenance(365)`.
-In Auth → Providers abilita Email (OTP), Apple e Google.
+In Auth → Providers abilita Email (OTP), Apple e Google; in Auth → URL Configuration aggiungi
+`caption://auth-callback` ai redirect consentiti (login Google via browser di sistema).
 
 ### 4. RevenueCat
 
@@ -158,8 +166,9 @@ In Auth → Providers abilita Email (OTP), Apple e Google.
    di abbonamento (così upgrade/downgrade sono gestiti dallo store).
 2. In RevenueCat crea gli **entitlement** con identificatori esatti `base`, `standard`, `pro`
    (mappati in `_shared/revenuecat.ts → ENTITLEMENT_TO_PLAN`) e collega ciascun prodotto.
-3. Crea un'**Offering** `default` con i tre package e (opzionale) un Paywall RevenueCat:
-   l'app usa `RevenueCatUI.presentPaywall()`.
+3. Crea un'**Offering** `default` con i tre package. Il paywall è custom: ogni package viene
+   associato al piano cercando `base` / `standard` / `pro` nell'identificatore del prodotto
+   (`src/lib/purchases.ts → getPlanPackages`), e il prezzo mostrato è quello localizzato dello store.
 4. Webhook (Integrations → Webhooks):
    URL `https://<ref>.supabase.co/functions/v1/revenuecat-webhook`,
    Authorization header = valore di `REVENUECAT_WEBHOOK_AUTH`.
@@ -287,8 +296,17 @@ pnpm typecheck           # app + shared
 
 ## Roadmap
 
-- **Fase 1 (in corso):** ✅ schema + RLS · ✅ generazione con controllo piano/limiti · ✅ RevenueCat
-  (webhook + sync) · ✅ prompt versionato · ✅ auth OTP email · ⏳ UI home (selettori, card
-  caption, copia/condividi), storico, Sign in with Apple/Google, onboarding.
-- **Fase 2:** UI rifiniture per piano, micro-interazioni, contatore utilizzi prominente.
-- **Fase 3:** hashtag intelligenti in UI, streaming delle caption, ottimizzazione costi.
+- **Fase 1 ✅:** schema + RLS · generazione con controllo piano/limiti · RevenueCat (webhook,
+  sync, paywall custom, ripristino, cambio piano) · prompt versionato · auth Apple/Google/email ·
+  onboarding · Crea (tipo, tono, contesto, card con copia/condividi) · storico (preferiti,
+  eliminazione, paginazione) · account (utilizzo, gestione abbonamento, privacy, eliminazione).
+- **Fase 2 ✅ (UI):** rifiniture per piano con upsell, micro-interazioni (molle, haptics,
+  skeleton), contatore utilizzi, stati scaduto / grace period / quota esaurita.
+- **Fase 3:** streaming delle caption, condivisione della card come immagine, ottimizzazione
+  costi (Haiku per rifiniture/hashtag, da valutare con dati reali), test E2E su device (Maestro).
+
+### Da fare prima della pubblicazione
+
+- Pagine **Privacy** e **Termini** reali (URL in `apps/mobile/src/constants/links.ts`).
+- Icona e splash definitivi (`apps/mobile/assets/` contiene segnaposto).
+- Prodotti negli store + RevenueCat configurati come sopra; test acquisti in sandbox su device.

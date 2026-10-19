@@ -1,91 +1,175 @@
+import * as AppleAuthentication from "expo-apple-authentication";
 import { router } from "expo-router";
-import { useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from "react-native";
-import { supabase } from "@/lib/supabase";
+import { useEffect, useState } from "react";
+import { KeyboardAvoidingView, Platform, Text, TextInput, View } from "react-native";
+import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
+import { Button } from "@/components/Button";
+import { PressableScale } from "@/components/PressableScale";
+import { Screen } from "@/components/Screen";
+import { analytics } from "@/lib/analytics";
+import {
+  AuthCancelled,
+  isAppleSignInAvailable,
+  isValidEmail,
+  sendEmailCode,
+  signInWithApple,
+  signInWithGoogle,
+  verifyEmailCode,
+} from "@/lib/auth";
 import { radius, spacing, typography } from "@/theme/tokens";
 import { useTheme } from "@/theme/useTheme";
 
-// Login senza password: codice OTP via email. Sign in with Apple / Google arrivano in Fase 1b.
+type Busy = "apple" | "google" | "email" | null;
+
 export default function SignIn() {
-  const theme = useTheme();
+  const t = useTheme();
+  const [appleAvailable, setAppleAvailable] = useState(false);
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  const [step, setStep] = useState<"email" | "code">("email");
-  const [busy, setBusy] = useState(false);
+  const [step, setStep] = useState<"choose" | "code">("choose");
+  const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function submit() {
-    setBusy(true);
+  useEffect(() => {
+    void isAppleSignInAvailable().then(setAppleAvailable);
+  }, []);
+
+  async function run(kind: Exclude<Busy, null>, action: () => Promise<void>, errorMessage: string) {
+    setBusy(kind);
     setError(null);
-    const { error: err } = step === "email"
-      ? await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true } })
-      : await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: "email" });
-    setBusy(false);
-    if (err) return setError(step === "email" ? "Email non valida o troppi tentativi." : "Codice non valido.");
-    if (step === "email") setStep("code");
-    else router.replace("/");
+    try {
+      await action();
+    } catch (err) {
+      if (!(err instanceof AuthCancelled)) setError(errorMessage);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function done(method: string) {
+    analytics.track("sign_in_completed", { method });
+    router.replace("/");
   }
 
   const input = {
     ...typography.body,
-    color: theme.text,
-    backgroundColor: theme.surface,
-    borderColor: theme.border,
+    fontSize: 17,
+    color: t.text,
+    backgroundColor: t.surface,
+    borderColor: t.border,
     borderWidth: 1,
     borderRadius: radius.md,
     padding: spacing.lg,
   } as const;
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={{ flex: 1, justifyContent: "center", padding: spacing.xl, gap: spacing.lg }}
-    >
-      <Text style={{ ...typography.display, color: theme.text }}>Caption</Text>
-      <Text style={{ ...typography.body, color: theme.textMuted }}>
-        {step === "email" ? "Accedi con la tua email: ti mandiamo un codice." : `Inserisci il codice inviato a ${email}`}
-      </Text>
-      {step === "email"
-        ? (
-          <TextInput
-            style={input}
-            value={email}
-            onChangeText={setEmail}
-            placeholder="nome@email.it"
-            placeholderTextColor={theme.textMuted}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-          />
-        )
-        : (
-          <TextInput
-            style={input}
-            value={code}
-            onChangeText={setCode}
-            placeholder="123456"
-            placeholderTextColor={theme.textMuted}
-            keyboardType="number-pad"
-            maxLength={6}
-            autoComplete="one-time-code"
-          />
-        )}
-      {error ? <Text style={{ ...typography.body, color: theme.danger }}>{error}</Text> : null}
-      <Pressable
-        onPress={submit}
-        disabled={busy}
-        style={({ pressed }) => ({
-          backgroundColor: theme.accent,
-          borderRadius: radius.pill,
-          padding: spacing.lg,
-          alignItems: "center",
-          opacity: pressed || busy ? 0.8 : 1,
-        })}
-      >
-        {busy
-          ? <ActivityIndicator color={theme.accentText} />
-          : <Text style={{ ...typography.label, color: theme.accentText }}>{step === "email" ? "CONTINUA" : "ACCEDI"}</Text>}
-      </Pressable>
-    </KeyboardAvoidingView>
+    <Screen>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, padding: spacing.xl, justifyContent: "flex-end", gap: spacing.xl }}>
+        <Animated.View entering={FadeInDown.springify()} style={{ flex: 1, justifyContent: "center", gap: spacing.md }}>
+          <Text style={{ ...typography.label, color: t.accent }}>caption.</Text>
+          <Text style={{ ...typography.hero, color: t.text }}>
+            {step === "choose" ? "Iniziamo." : "Controlla\nla tua email."}
+          </Text>
+          <Text style={{ ...typography.body, color: t.textMuted, fontSize: 17, lineHeight: 24 }}>
+            {step === "choose"
+              ? "Crea il tuo account in un attimo: serve per salvare storico e abbonamento."
+              : `Abbiamo inviato un codice di 6 cifre a ${email.trim()}.`}
+          </Text>
+        </Animated.View>
+
+        {step === "choose"
+          ? (
+            <Animated.View entering={FadeIn} style={{ gap: spacing.md }}>
+              {appleAvailable
+                ? (
+                  <AppleAuthentication.AppleAuthenticationButton
+                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+                    cornerRadius={radius.pill}
+                    style={{ height: 56 }}
+                    onPress={() => void run("apple", async () => {
+                      await signInWithApple();
+                      done("apple");
+                    }, "Accesso con Apple non riuscito.")}
+                  />
+                )
+                : null}
+              <Button
+                label="Continua con Google"
+                icon="logo-google"
+                variant="secondary"
+                loading={busy === "google"}
+                disabled={busy !== null}
+                onPress={() => void run("google", async () => {
+                  await signInWithGoogle();
+                  done("google");
+                }, "Accesso con Google non riuscito.")}
+              />
+              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, marginVertical: spacing.xs }}>
+                <View style={{ flex: 1, height: 1, backgroundColor: t.border }} />
+                <Text style={{ ...typography.small, color: t.textFaint }}>oppure</Text>
+                <View style={{ flex: 1, height: 1, backgroundColor: t.border }} />
+              </View>
+              <TextInput
+                style={input}
+                value={email}
+                onChangeText={setEmail}
+                placeholder="nome@email.it"
+                placeholderTextColor={t.textFaint}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+                textContentType="emailAddress"
+                returnKeyType="send"
+                accessibilityLabel="Email"
+              />
+              <Button
+                label="Continua con email"
+                variant="primary"
+                loading={busy === "email"}
+                disabled={busy !== null || !isValidEmail(email)}
+                onPress={() => void run("email", async () => {
+                  await sendEmailCode(email.trim());
+                  setStep("code");
+                }, "Non siamo riusciti a inviare il codice. Riprova tra poco.")}
+              />
+            </Animated.View>
+          )
+          : (
+            <Animated.View entering={FadeIn} style={{ gap: spacing.md }}>
+              <TextInput
+                style={{ ...input, fontSize: 28, letterSpacing: 10, textAlign: "center", fontVariant: ["tabular-nums"] }}
+                value={code}
+                onChangeText={(v) => setCode(v.replace(/\D/g, "").slice(0, 6))}
+                placeholder="••••••"
+                placeholderTextColor={t.textFaint}
+                keyboardType="number-pad"
+                autoComplete="one-time-code"
+                textContentType="oneTimeCode"
+                autoFocus
+                accessibilityLabel="Codice di verifica"
+              />
+              <Button
+                label="Accedi"
+                loading={busy === "email"}
+                disabled={busy !== null || code.length !== 6}
+                onPress={() => void run("email", async () => {
+                  await verifyEmailCode(email.trim(), code);
+                  done("email");
+                }, "Codice non valido o scaduto.")}
+              />
+              <PressableScale onPress={() => { setStep("choose"); setCode(""); setError(null); }} style={{ alignItems: "center", padding: spacing.sm }}>
+                <Text style={{ ...typography.small, fontWeight: "600", color: t.textMuted }}>Usa un'altra email</Text>
+              </PressableScale>
+            </Animated.View>
+          )}
+
+        {error ? <Text accessibilityRole="alert" style={{ ...typography.small, color: t.danger, textAlign: "center" }}>{error}</Text> : null}
+        <Text style={{ ...typography.small, fontSize: 11, color: t.textFaint, textAlign: "center" }}>
+          Continuando accetti Termini di servizio e Informativa privacy.
+        </Text>
+      </KeyboardAvoidingView>
+    </Screen>
   );
 }

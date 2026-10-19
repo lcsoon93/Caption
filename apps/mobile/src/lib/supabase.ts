@@ -9,6 +9,8 @@ export const supabase = createClient(env.supabaseUrl, env.supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    // PKCE: necessario per il login OAuth (Google) via browser di sistema.
+    flowType: "pkce",
   },
 });
 

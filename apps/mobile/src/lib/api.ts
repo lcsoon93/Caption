@@ -75,6 +75,7 @@ export const api = {
       hasAccess: data.has_access,
       expiresAt: data.expires_at,
       willRenew: data.will_renew,
+      productId: data.product_id,
       used: data.credits_used,
       limit,
       remaining: limit === null ? null : Math.max(limit - data.credits_used, 0),
@@ -82,10 +83,10 @@ export const api = {
     };
   },
 
-  async history(opts: { before?: string; limit?: number } = {}): Promise<CaptionDTO[]> {
+  async history(opts: { before?: string; limit?: number } = {}): Promise<HistoryItem[]> {
     let query = supabase
       .from("captions")
-      .select("id, text, hashtags, post_type, tone, refine_action, parent_caption_id, created_at")
+      .select("id, text, hashtags, post_type, tone, refine_action, parent_caption_id, is_favorite, created_at")
       .order("created_at", { ascending: false })
       .limit(opts.limit ?? 30);
     if (opts.before) query = query.lt("created_at", opts.before);
@@ -100,7 +101,13 @@ export const api = {
       refineAction: r.refine_action,
       parentCaptionId: r.parent_caption_id,
       createdAt: r.created_at,
+      isFavorite: r.is_favorite,
     }));
+  },
+
+  async setFavorite(id: string, isFavorite: boolean): Promise<void> {
+    const { error } = await supabase.from("captions").update({ is_favorite: isFavorite }).eq("id", id);
+    if (error) throw new CaptionApiError("internal", API_ERROR_MESSAGES.internal);
   },
 
   async deleteCaption(id: string): Promise<void> {
@@ -109,6 +116,8 @@ export const api = {
   },
 };
 
+export type HistoryItem = CaptionDTO & { isFavorite: boolean };
+
 interface StatusRow {
   plan: PlanId | null;
   status: SubscriptionStatus;
@@ -116,6 +125,7 @@ interface StatusRow {
   expires_at: string | null;
   will_renew: boolean;
   store: string | null;
+  product_id: string | null;
   period_start: string;
   period_end: string | null;
   credits_used: number;
@@ -127,6 +137,7 @@ export interface AccountStatus {
   hasAccess: boolean;
   expiresAt: string | null;
   willRenew: boolean;
+  productId: string | null;
   used: number;
   limit: number | null;
   remaining: number | null;
@@ -139,6 +150,7 @@ const EMPTY_STATUS: AccountStatus = {
   hasAccess: false,
   expiresAt: null,
   willRenew: false,
+  productId: null,
   used: 0,
   limit: null,
   remaining: null,
