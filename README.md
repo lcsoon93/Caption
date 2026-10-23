@@ -188,6 +188,23 @@ pnpm mobile                               # Metro con dev client
 
 ---
 
+### 6. Versione web
+
+La stessa app gira nel browser (Expo per il web), utile per test e come canale aggiuntivo.
+
+```bash
+pnpm --filter @caption/mobile build:web   # → apps/mobile/dist (con una pagina per ogni rotta)
+```
+
+Hosting: sito statico (es. Render) con
+- build command: `corepack enable && pnpm install --frozen-lockfile && pnpm --filter @caption/mobile build:web`
+- publish directory: `apps/mobile/dist`
+- variabili: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `NODE_VERSION=22`, `CI=1`
+
+Differenze sul web: niente acquisti (l'abbonamento si attiva dall'app mobile e vale anche
+sul web; RevenueCat Web Billing è un passo successivo), login con email o Google (redirect su
+`/auth-callback`, da aggiungere agli URL consentiti in Supabase), niente Sign in with Apple.
+
 ## Variabili d'ambiente
 
 ### Edge Functions (secrets Supabase)

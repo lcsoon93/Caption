@@ -2,13 +2,14 @@ import { PLANS, POST_TYPE_META, TONE_META } from "@caption/shared";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, RefreshControl, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, RefreshControl, Text, View } from "react-native";
 import { Banner } from "@/components/Banner";
 import { Button } from "@/components/Button";
 import { CaptionCard } from "@/components/CaptionCard";
 import { PressableScale } from "@/components/PressableScale";
 import { Screen } from "@/components/Screen";
 import { api, type HistoryItem } from "@/lib/api";
+import { confirmDestructive } from "@/lib/dialog";
 import { useSession } from "@/providers/SessionProvider";
 import { useUpgrade } from "@/providers/UpgradeProvider";
 import { spacing, typography } from "@/theme/tokens";
@@ -78,23 +79,15 @@ export default function History() {
     }
   }
 
-  function confirmDelete(item: HistoryItem) {
-    Alert.alert("Eliminare questa caption?", "Non potrai recuperarla.", [
-      { text: "Annulla", style: "cancel" },
-      {
-        text: "Elimina",
-        style: "destructive",
-        onPress: async () => {
-          const before = items;
-          setItems((prev) => prev.filter((c) => c.id !== item.id));
-          try {
-            await api.deleteCaption(item.id);
-          } catch {
-            setItems(before);
-          }
-        },
-      },
-    ]);
+  async function confirmDelete(item: HistoryItem) {
+    if (!(await confirmDestructive("Eliminare questa caption?", "Non potrai recuperarla.", "Elimina"))) return;
+    const before = items;
+    setItems((prev) => prev.filter((c) => c.id !== item.id));
+    try {
+      await api.deleteCaption(item.id);
+    } catch {
+      setItems(before);
+    }
   }
 
   const historyLimit = status?.plan ? PLANS[status.plan].historyLimit : null;
@@ -165,7 +158,7 @@ export default function History() {
                   >
                     <Ionicons name={item.isFavorite ? "star" : "star-outline"} size={19} color={item.isFavorite ? t.accent : t.textMuted} />
                   </PressableScale>
-                  <PressableScale onPress={() => confirmDelete(item)} accessibilityLabel="Elimina caption" hitSlop={10}>
+                  <PressableScale onPress={() => void confirmDelete(item)} accessibilityLabel="Elimina caption" hitSlop={10}>
                     <Ionicons name="trash-outline" size={19} color={t.textMuted} />
                   </PressableScale>
                 </View>

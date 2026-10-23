@@ -21,6 +21,17 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     package: IS_DEV ? "app.caption.dev" : "app.caption",
     adaptiveIcon: { foregroundImage: "./assets/adaptive-icon.png", backgroundColor: "#0B0B0F" },
   },
+  web: {
+    bundler: "metro",
+    output: "single",
+    favicon: "./assets/icon.png",
+    name: "Caption",
+    shortName: "Caption",
+    description: "Caption Instagram in italiano, scritte bene, in pochi secondi.",
+    lang: "it",
+    themeColor: "#0A0A0D",
+    backgroundColor: "#0A0A0D",
+  },
   plugins: [
     "expo-router",
     "expo-apple-authentication",

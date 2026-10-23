@@ -8,10 +8,13 @@ import Purchases, { LOG_LEVEL, type CustomerInfo, type PurchasesPackage } from "
 import { api } from "./api";
 import { env } from "./env";
 
+export const PURCHASES_AVAILABLE = true;
+
 let configured = false;
 
 export async function initPurchases(userId: string): Promise<void> {
   if (!configured) {
+    if (!env.revenueCatKey) throw new Error("Chiave RevenueCat mancante (EXPO_PUBLIC_REVENUECAT_*_KEY)");
     if (__DEV__) await Purchases.setLogLevel(LOG_LEVEL.DEBUG);
     Purchases.configure({ apiKey: env.revenueCatKey, appUserID: userId });
     configured = true;
@@ -63,7 +66,7 @@ export async function purchasePlan(
   }
 }
 
-export async function restorePurchases(): Promise<CustomerInfo> {
+export async function restorePurchases(): Promise<CustomerInfo | null> {
   const info = await Purchases.restorePurchases();
   await api.syncSubscription();
   return info;

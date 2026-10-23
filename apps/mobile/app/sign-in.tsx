@@ -7,6 +7,7 @@ import { Button } from "@/components/Button";
 import { PressableScale } from "@/components/PressableScale";
 import { Screen } from "@/components/Screen";
 import { analytics } from "@/lib/analytics";
+import { env } from "@/lib/env";
 import {
   AuthCancelled,
   isAppleSignInAvailable,
@@ -94,6 +95,8 @@ export default function SignIn() {
                   />
                 )
                 : null}
+              {env.googleAuthEnabled
+                ? (
               <Button
                 label="Continua con Google"
                 icon="logo-google"
@@ -105,11 +108,17 @@ export default function SignIn() {
                   done("google");
                 }, "Accesso con Google non riuscito.")}
               />
+                )
+                : null}
+              {appleAvailable || env.googleAuthEnabled
+                ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, marginVertical: spacing.xs }}>
                 <View style={{ flex: 1, height: 1, backgroundColor: t.border }} />
                 <Text style={{ ...typography.small, color: t.textFaint }}>oppure</Text>
                 <View style={{ flex: 1, height: 1, backgroundColor: t.border }} />
               </View>
+                )
+                : null}
               <TextInput
                 style={input}
                 value={email}

@@ -4,14 +4,15 @@ import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Linking, ScrollView, Switch, Text, View } from "react-native";
+import { Linking, ScrollView, Switch, Text, View } from "react-native";
 import { Button } from "@/components/Button";
 import { PressableScale } from "@/components/PressableScale";
 import { Screen } from "@/components/Screen";
 import { LINKS } from "@/constants/links";
 import { analytics } from "@/lib/analytics";
 import { api } from "@/lib/api";
-import { openManageSubscriptions, restorePurchases } from "@/lib/purchases";
+import { confirmDestructive, notify } from "@/lib/dialog";
+import { openManageSubscriptions, PURCHASES_AVAILABLE, restorePurchases } from "@/lib/purchases";
 import { storage } from "@/lib/storage";
 import { useSession } from "@/providers/SessionProvider";
 import { radius, spacing, typography } from "@/theme/tokens";
@@ -93,39 +94,31 @@ export default function Account() {
       await restorePurchases();
       await refreshStatus();
       analytics.track("restore_completed");
-      Alert.alert("Fatto", "Acquisti ripristinati.");
+      notify("Fatto", "Acquisti ripristinati.");
     } catch {
-      Alert.alert("Ops", "Non siamo riusciti a ripristinare gli acquisti. Riprova.");
+      notify("Ops", "Non siamo riusciti a ripristinare gli acquisti. Riprova.");
     } finally {
       setBusy(null);
     }
   }
 
-  function onDelete() {
-    Alert.alert(
+  async function onDelete() {
+    const confirmed = await confirmDestructive(
       "Eliminare l'account?",
-      "Cancelliamo account e storico in modo definitivo. L'abbonamento è gestito dallo store: disdicilo da lì per non ricevere altri addebiti.",
-      [
-        { text: "Annulla", style: "cancel" },
-        { text: "Gestisci abbonamento", onPress: () => void openManageSubscriptions() },
-        {
-          text: "Elimina",
-          style: "destructive",
-          onPress: async () => {
-            setBusy("delete");
-            try {
-              await api.deleteAccount();
-              await signOut();
-              router.replace("/");
-            } catch {
-              Alert.alert("Ops", "Eliminazione non riuscita. Riprova o scrivici.");
-            } finally {
-              setBusy(null);
-            }
-          },
-        },
-      ],
+      "Cancelliamo account e storico in modo definitivo. Se hai un abbonamento attivo, disdicilo dalle impostazioni dello store (App Store o Google Play) per non ricevere altri addebiti.",
+      "Elimina",
     );
+    if (!confirmed) return;
+    setBusy("delete");
+    try {
+      await api.deleteAccount();
+      await signOut();
+      router.replace("/");
+    } catch {
+      notify("Ops", "Eliminazione non riuscita. Riprova o scrivici.");
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (
@@ -185,10 +178,18 @@ export default function Account() {
           />
         </View>
 
-        <Group title="Abbonamento">
-          <Row icon="card-outline" label="Gestisci abbonamento" onPress={() => void openManageSubscriptions()} />
-          <Row icon="refresh-outline" label={busy === "restore" ? "Ripristino…" : "Ripristina acquisti"} onPress={() => void onRestore()} />
-        </Group>
+        {PURCHASES_AVAILABLE
+          ? (
+            <Group title="Abbonamento">
+              <Row icon="card-outline" label="Gestisci abbonamento" onPress={() => void openManageSubscriptions()} />
+              <Row
+                icon="refresh-outline"
+                label={busy === "restore" ? "Ripristino…" : "Ripristina acquisti"}
+                onPress={() => void onRestore()}
+              />
+            </Group>
+          )
+          : null}
 
         <Group title="Privacy">
           <Row
@@ -217,7 +218,7 @@ export default function Account() {
             icon="trash-outline"
             label={busy === "delete" ? "Eliminazione…" : "Elimina account"}
             danger
-            onPress={onDelete}
+            onPress={() => void onDelete()}
           />
         </Group>
 

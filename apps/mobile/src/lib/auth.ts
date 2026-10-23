@@ -5,6 +5,7 @@ import * as Crypto from "expo-crypto";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
+import { IS_WEB } from "./env";
 import { supabase } from "./supabase";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -38,6 +39,15 @@ export async function signInWithApple(): Promise<void> {
 }
 
 export async function signInWithGoogle(): Promise<void> {
+  if (IS_WEB) {
+    // Sul web: redirect a pagina intera; la sessione si completa in app/auth-callback.tsx.
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/auth-callback` },
+    });
+    if (error) throw error;
+    return;
+  }
   const redirectTo = Linking.createURL("auth-callback");
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",

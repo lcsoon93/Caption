@@ -17,7 +17,7 @@ import { SkeletonCard } from "@/components/SkeletonCard";
 import { UsageMeter } from "@/components/UsageMeter";
 import { useCaptionGenerator } from "@/hooks/useCaptionGenerator";
 import type { CaptionApiError } from "@/lib/api";
-import { openManageSubscriptions } from "@/lib/purchases";
+import { openManageSubscriptions, PURCHASES_AVAILABLE } from "@/lib/purchases";
 import { upgradeCopy } from "@/lib/planCopy";
 import { useSession } from "@/providers/SessionProvider";
 import { useUpgrade } from "@/providers/UpgradeProvider";
@@ -116,8 +116,8 @@ export default function Create() {
                 tone="warning"
                 title="Problema con il pagamento"
                 message="Aggiorna il metodo di pagamento per non perdere l'accesso."
-                actionLabel="Aggiorna"
-                onAction={() => void openManageSubscriptions()}
+                actionLabel={PURCHASES_AVAILABLE ? "Aggiorna" : undefined}
+                onAction={PURCHASES_AVAILABLE ? () => void openManageSubscriptions() : undefined}
               />
             )
             : null}
