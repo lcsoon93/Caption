@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, ScrollView, Share, Text, View } from "react-native";
+import { ActivityIndicator, Platform, ScrollView, Share, Text, View } from "react-native";
 import Animated, { FadeInDown, LinearTransition, ZoomIn } from "react-native-reanimated";
 import { analytics } from "@/lib/analytics";
 import { captionForClipboard } from "@/lib/captionText";
@@ -35,7 +35,7 @@ export function CaptionCard({ caption, index, plan, refining, onRefine, onLocked
 
   async function copy() {
     await Clipboard.setStringAsync(captionForClipboard(caption));
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
     analytics.track("caption_copied", { tone: caption.tone, postType: caption.postType, refined: !!caption.refineAction });
     setCopied(true);
     if (timer.current) clearTimeout(timer.current);
@@ -43,8 +43,13 @@ export function CaptionCard({ caption, index, plan, refining, onRefine, onLocked
   }
 
   async function share() {
-    const result = await Share.share({ message: captionForClipboard(caption) });
-    if (result.action === Share.sharedAction) analytics.track("caption_shared", { tone: caption.tone });
+    try {
+      const result = await Share.share({ message: captionForClipboard(caption) });
+      if (result.action === Share.sharedAction) analytics.track("caption_shared", { tone: caption.tone });
+    } catch {
+      // Browser senza condivisione nativa (es. desktop): copiamo il testo.
+      await copy();
+    }
   }
 
   return (

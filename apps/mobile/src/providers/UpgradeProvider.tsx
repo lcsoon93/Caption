@@ -43,6 +43,9 @@ export function UpgradeProvider({ children }: { children: ReactNode }) {
           ? (
             <View
               style={{
+                width: "100%",
+                maxWidth: 520,
+                alignSelf: "center",
                 backgroundColor: t.surface,
                 borderTopLeftRadius: radius.xl,
                 borderTopRightRadius: radius.xl,

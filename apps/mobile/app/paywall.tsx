@@ -6,7 +6,7 @@ import { isPlanId, PLAN_IDS, PLAN_RANK, PLANS } from "@caption/shared";
 import { Ionicons } from "@expo/vector-icons";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Linking, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Linking, ScrollView, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Banner } from "@/components/Banner";
@@ -14,7 +14,8 @@ import { Button } from "@/components/Button";
 import { PressableScale } from "@/components/PressableScale";
 import { LINKS } from "@/constants/links";
 import { analytics } from "@/lib/analytics";
-import { getPlanPackages, type PlanPackage, purchasePlan, restorePurchases } from "@/lib/purchases";
+import { notify } from "@/lib/dialog";
+import { getPlanPackages, type PlanPackage, PURCHASES_AVAILABLE, purchasePlan, restorePurchases } from "@/lib/purchases";
 import { useSession } from "@/providers/SessionProvider";
 import { radius, spacing, typography } from "@/theme/tokens";
 import { useTheme } from "@/theme/useTheme";
@@ -85,7 +86,7 @@ export default function Paywall() {
       analytics.track("purchase_completed", { plan: selected });
       await finish();
     } catch {
-      Alert.alert("Acquisto non riuscito", "Non ti è stato addebitato nulla. Riprova tra poco.");
+      notify("Acquisto non riuscito", "Non ti è stato addebitato nulla. Riprova tra poco.");
     } finally {
       setBusy(null);
     }
@@ -99,14 +100,19 @@ export default function Paywall() {
       analytics.track("restore_completed");
       await finish();
     } catch {
-      Alert.alert("Nessun acquisto trovato", "Non abbiamo trovato abbonamenti attivi da ripristinare.");
+      notify("Nessun acquisto trovato", "Non abbiamo trovato abbonamenti attivi da ripristinare.");
     } finally {
       setBusy(null);
     }
   }
 
   const headline = HEADLINES[mode];
-  const selectedPkg = packages?.find((p) => p.plan === selected);
+  // Sul web i piani si mostrano con il prezzo di listino, ma l'acquisto avviene dall'app mobile.
+  const offers: Array<{ plan: PlanId; priceString: string }> | null = PURCHASES_AVAILABLE
+    ? packages
+    : PLAN_IDS.map((plan) => ({ plan, priceString: PLANS[plan].priceLabel.replace("/mese", "") }));
+  const selectedPkg = PURCHASES_AVAILABLE ? packages?.find((p) => p.plan === selected) : undefined;
+  const selectedOffer = offers?.find((p) => p.plan === selected);
   const isCurrent = selected === currentPlan;
   const closable = mode !== "gate";
 
@@ -135,14 +141,23 @@ export default function Paywall() {
         {loadError
           ? <Banner tone="danger" title="Non riusciamo a caricare i piani" actionLabel="Riprova" onAction={() => void load()} />
           : null}
-        {!packages && !loadError ? <ActivityIndicator color={t.accent} style={{ marginVertical: spacing.xxl }} /> : null}
-        {packages && packages.length === 0
+        {!PURCHASES_AVAILABLE
+          ? (
+            <Banner
+              tone="info"
+              title="Abbonamenti dal web in arrivo"
+              message="Per ora l'abbonamento si attiva dall'app iOS o Android e vale anche qui sul web, con lo stesso account."
+            />
+          )
+          : null}
+        {PURCHASES_AVAILABLE && !packages && !loadError ? <ActivityIndicator color={t.accent} style={{ marginVertical: spacing.xxl }} /> : null}
+        {PURCHASES_AVAILABLE && packages && packages.length === 0
           ? <Banner tone="warning" title="Piani non disponibili" message="Riprova più tardi o controlla il tuo account dello store." />
           : null}
 
-        {packages?.length
+        {offers?.length
           ? PLAN_IDS.map((id, i) => {
-            const pkg = packages.find((p) => p.plan === id);
+            const pkg = offers.find((p) => p.plan === id);
             if (!pkg) return null;
             const rules = PLANS[id];
             const active = selected === id;
@@ -219,6 +234,8 @@ export default function Paywall() {
         <Button
           label={isCurrent
             ? "È già il tuo piano"
+            : !PURCHASES_AVAILABLE
+            ? `${PLANS[selected].name} · ${selectedOffer?.priceString ?? ""}/mese · dall'app`
             : selectedPkg
             ? `${currentPlan && PLAN_RANK[selected] < PLAN_RANK[currentPlan] ? "Passa a" : "Abbonati a"} ${PLANS[selected].name} · ${selectedPkg.priceString}/mese`
             : "Continua"}
@@ -231,11 +248,15 @@ export default function Paywall() {
           momento dalle impostazioni dello store, almeno 24 ore prima del rinnovo.
         </Text>
         <View style={{ flexDirection: "row", justifyContent: "center", gap: spacing.lg }}>
-          <PressableScale onPress={() => void onRestore()} disabled={busy !== null}>
-            <Text style={{ ...typography.small, fontWeight: "600", color: t.textMuted }}>
-              {busy === "restore" ? "Ripristino…" : "Ripristina"}
-            </Text>
-          </PressableScale>
+          {PURCHASES_AVAILABLE
+            ? (
+              <PressableScale onPress={() => void onRestore()} disabled={busy !== null}>
+                <Text style={{ ...typography.small, fontWeight: "600", color: t.textMuted }}>
+                  {busy === "restore" ? "Ripristino…" : "Ripristina"}
+                </Text>
+              </PressableScale>
+            )
+            : null}
           <PressableScale onPress={() => void Linking.openURL(LINKS.terms)}>
             <Text style={{ ...typography.small, color: t.textMuted }}>Termini</Text>
           </PressableScale>
