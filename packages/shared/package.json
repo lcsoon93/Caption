@@ -1,0 +1,14 @@
+{
+  "name": "@caption/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tipi, catalogo e regole dei piani condivisi tra app ed Edge Functions",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  }
+}

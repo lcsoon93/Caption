@@ -1,0 +1,25 @@
+node_modules/
+.expo/
+dist/
+web-build/
+ios/
+android/
+*.log
+.DS_Store
+
+# env
+.env
+.env.*
+!.env.example
+supabase/functions/.env
+supabase/.temp/
+supabase/.branches/
+
+# EAS / native
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist
