@@ -28,7 +28,7 @@ export function loadGeminiConfig(): GeminiConfig {
     model: Deno.env.get("GEMINI_MODEL") ?? "gemini-3.8-flash",
     thinkingLevel: level === "MINIMAL" || level === "MEDIUM" || level === "HIGH" ? level : "LOW",
     maxTokens: Number(Deno.env.get("GEMINI_MAX_TOKENS") ?? 4096),
-    timeoutMs: Number(Deno.env.get("GEMINI_TIMEOUT_MS") ?? 15_000),
+    timeoutMs: Number(Deno.env.get("GEMINI_TIMEOUT_MS") ?? 45_000),
     priceInput: Number(Deno.env.get("GEMINI_PRICE_INPUT_PER_MTOK") ?? 0),
     priceOutput: Number(Deno.env.get("GEMINI_PRICE_OUTPUT_PER_MTOK") ?? 0),
   };
