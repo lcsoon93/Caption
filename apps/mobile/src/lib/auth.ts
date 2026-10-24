@@ -43,7 +43,7 @@ export async function signInWithGoogle(): Promise<void> {
     // Sul web: redirect a pagina intera; la sessione si completa in app/auth-callback.tsx.
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth-callback` },
+      options: { redirectTo: authCallbackUrl() },
     });
     if (error) throw error;
     return;
@@ -63,8 +63,20 @@ export async function signInWithGoogle(): Promise<void> {
   if (exchangeError) throw exchangeError;
 }
 
+/** Dove riporta il link "magico" nell'email (app/auth-callback.tsx scambia il codice). */
+export function authCallbackUrl(): string {
+  return IS_WEB ? `${window.location.origin}/auth-callback` : Linking.createURL("auth-callback");
+}
+
+/**
+ * Invia l'email di accesso. Con i template predefiniti di Supabase contiene un link;
+ * con un template personalizzato (serve SMTP proprio) può contenere anche il codice a 6 cifre.
+ */
 export async function sendEmailCode(email: string): Promise<void> {
-  const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: true, emailRedirectTo: authCallbackUrl() },
+  });
   if (error) throw error;
 }
 
