@@ -74,7 +74,7 @@ export default function SignIn() {
           <Text style={{ ...typography.body, color: t.textMuted, fontSize: 17, lineHeight: 24 }}>
             {step === "choose"
               ? "Crea il tuo account in un attimo: serve per salvare storico e abbonamento."
-              : `Abbiamo inviato un codice di 6 cifre a ${email.trim()}.`}
+              : `Abbiamo scritto a ${email.trim()}. Tocca il link nell'email da questo dispositivo, oppure inserisci qui il codice se l'email ne contiene uno.`}
           </Text>
         </Animated.View>
 
