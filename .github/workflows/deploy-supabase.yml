@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ["supabase/**"]
+    paths: ["supabase/**", ".github/workflows/deploy-supabase.yml"]
 
 concurrency:
   group: deploy-supabase
@@ -45,6 +45,26 @@ jobs:
 
       - name: Edge Functions
         run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_ID"
+
+      # Impostazioni Auth versionate nel repo (Site URL, redirect consentiti, OTP).
+      - name: Configurazione Auth
+        run: |
+          curl -fsS -X PATCH "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_ID/config/auth" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+            --data @supabase/auth/config.json > /dev/null
+          echo "Auth config aggiornata"
+
+      # Sul piano gratuito i template email si possono cambiare solo con SMTP personalizzato:
+      # se Supabase rifiuta, il deploy prosegue e restano i template predefiniti (link).
+      - name: Template email
+        continue-on-error: true
+        run: |
+          code=$(curl -sS -o /tmp/tpl.out -w "%{http_code}" -X PATCH \
+            "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_ID/config/auth" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+            --data @supabase/auth/templates.json)
+          echo "HTTP $code"; head -c 400 /tmp/tpl.out; echo
+          [ "$code" -lt 300 ]
 
       - name: Riepilogo
         run: |

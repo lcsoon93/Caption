@@ -1,0 +1,6 @@
+{
+  "mailer_subjects_magic_link": "Il tuo accesso a Caption",
+  "mailer_templates_magic_link_content": "<h2>Accedi a Caption</h2><p>Inserisci questo codice nell'app:</p><p style=\"font-size:30px;font-weight:700;letter-spacing:6px\">{{ .Token }}</p><p>Oppure <a href=\"{{ .ConfirmationURL }}\">tocca qui per accedere</a> da questo dispositivo.</p><p>Il codice scade tra 10 minuti. Se non hai richiesto tu l'accesso, ignora questa email.</p>",
+  "mailer_subjects_confirmation": "Benvenuto su Caption",
+  "mailer_templates_confirmation_content": "<h2>Benvenuto su Caption</h2><p>Inserisci questo codice nell'app:</p><p style=\"font-size:30px;font-weight:700;letter-spacing:6px\">{{ .Token }}</p><p>Oppure <a href=\"{{ .ConfirmationURL }}\">tocca qui per confermare</a> da questo dispositivo.</p><p>Il codice scade tra 10 minuti.</p>"
+}
