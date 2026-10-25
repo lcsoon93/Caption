@@ -40,12 +40,6 @@ jobs:
       - name: Collega il progetto
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
 
-      - name: Migrazioni database
-        run: supabase db push --linked
-
-      - name: Edge Functions
-        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_ID"
-
       # Impostazioni Auth versionate nel repo (Site URL, redirect consentiti, OTP).
       - name: Configurazione Auth
         run: |
@@ -65,6 +59,12 @@ jobs:
             --data @supabase/auth/templates.json)
           echo "HTTP $code"; head -c 400 /tmp/tpl.out; echo
           [ "$code" -lt 300 ]
+
+      - name: Migrazioni database
+        run: supabase db push --linked
+
+      - name: Edge Functions
+        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_ID"
 
       - name: Riepilogo
         run: |
