@@ -60,6 +60,12 @@ jobs:
           echo "HTTP $code"; head -c 400 /tmp/tpl.out; echo
           [ "$code" -lt 300 ]
 
+      # Una migrazione di un altro progetto (bot di trading, 20261024230537) è stata applicata
+      # per errore a questo database: la togliamo dallo storico (la migrazione
+      # 20261025000000 rimuove schema e utente). Innocuo se la riga non c'è più.
+      - name: Pulizia storico migrazioni esterne
+        run: supabase migration repair --status reverted 20261024230537 --linked || true
+
       - name: Migrazioni database
         run: supabase db push --linked
 
