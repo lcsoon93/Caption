@@ -1,0 +1,67 @@
+name: Deploy web beta (GitHub Pages)
+
+# Pubblica la versione web della BETA CHIUSA su GitHub Pages:
+#   https://<utente>.github.io/<repo>/
+# Requisiti (una tantum): Settings → Pages → Source = "GitHub Actions".
+# GitHub Pages con repository privato richiede un piano GitHub a pagamento (Pro/Team);
+# con il piano gratuito il repository deve essere pubblico.
+# Su repo privato il deploy parte solo a mano (Actions → Run workflow), così i push non falliscono.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["apps/mobile/**", "packages/**", "supabase/functions/_shared/domain/**", "pnpm-lock.yaml", ".github/workflows/deploy-pages.yml"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || !github.event.repository.private
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Build web
+        working-directory: apps/mobile
+        env:
+          CI: "1"
+          # Valori pubblici: finiscono comunque nel bundle del sito (la chiave "publishable"
+          # è fatta per stare nel client; la sicurezza la fanno RLS ed Edge Functions).
+          EXPO_PUBLIC_SUPABASE_URL: https://ubpywayusiykkcpxbgdu.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_SIPJOsj4w4ylPgL3BUpB_A_Aj8LyWw4
+          EXPO_PUBLIC_CLOSED_BETA: "true"
+          EXPO_PUBLIC_BASE_URL: ${{ steps.pages.outputs.base_path }}
+        run: |
+          pnpm run build:web
+          touch dist/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/mobile/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

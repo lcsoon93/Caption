@@ -15,6 +15,7 @@ import { PressableScale } from "@/components/PressableScale";
 import { LINKS } from "@/constants/links";
 import { analytics } from "@/lib/analytics";
 import { notify } from "@/lib/dialog";
+import { env } from "@/lib/env";
 import { getPlanPackages, type PlanPackage, PURCHASES_AVAILABLE, purchasePlan, restorePurchases } from "@/lib/purchases";
 import { useSession } from "@/providers/SessionProvider";
 import { radius, spacing, typography } from "@/theme/tokens";
@@ -38,6 +39,109 @@ const HEADLINES: Record<Mode, { title: string; subtitle: string }> = {
 };
 
 export default function Paywall() {
+  return env.closedBeta ? <BetaGate /> : <StorePaywall />;
+}
+
+/** Beta chiusa: niente acquisti, l'accesso viene concesso ai tester invitati. */
+function BetaGate() {
+  const t = useTheme();
+  const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ mode?: string }>();
+  const closable = params.mode === "upgrade" || params.mode === "expired";
+  const { session, status, refreshStatus, signOut } = useSession();
+  const [checking, setChecking] = useState(false);
+  const email = session?.user.email ?? "";
+
+  useEffect(() => {
+    analytics.track("paywall_viewed", { mode: "closed_beta", currentPlan: status?.plan ?? "none" });
+  }, [status?.plan]);
+
+  async function onCheck() {
+    setChecking(true);
+    try {
+      await refreshStatus();
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  // Appena l'accesso risulta attivo si entra nell'app.
+  useEffect(() => {
+    if (status?.hasAccess && !closable) router.replace("/create");
+  }, [status?.hasAccess, closable]);
+
+  const hasAccess = status?.hasAccess ?? false;
+  return (
+    <View style={{ flex: 1, backgroundColor: t.background }}>
+      <Stack.Screen options={{ gestureEnabled: closable }} />
+      <ScrollView contentContainerStyle={{ padding: spacing.xl, paddingTop: insets.top + spacing.xxl, gap: spacing.xl }}>
+        {closable
+          ? (
+            <PressableScale
+              onPress={() => (router.canGoBack() ? router.back() : router.replace("/create"))}
+              accessibilityLabel="Chiudi"
+              style={{ position: "absolute", right: spacing.xl, top: insets.top + spacing.md, padding: spacing.sm, zIndex: 1 }}
+            >
+              <Ionicons name="close" size={24} color={t.textMuted} />
+            </PressableScale>
+          )
+          : null}
+        <View style={{ gap: spacing.md }}>
+          <Text style={{ ...typography.label, color: t.accent }}>caption. · beta chiusa</Text>
+          <Text style={{ ...typography.display, color: t.text }}>
+            {hasAccess ? "Sei dentro.\nGrazie per il test." : "Accesso\nsolo su invito."}
+          </Text>
+          <Text style={{ ...typography.body, color: t.textMuted }}>
+            {hasAccess
+              ? "Durante la beta il piano lo assegniamo noi: nessun pagamento. Se ti serve un piano diverso, scrivici."
+              : "Caption è in test con un gruppo ristretto di persone. Se sei stato invitato, il tuo accesso verrà attivato a breve su questo account."}
+          </Text>
+        </View>
+
+        <View
+          style={{
+            backgroundColor: t.surface,
+            borderRadius: radius.lg,
+            borderWidth: 1,
+            borderColor: t.border,
+            padding: spacing.xl,
+            gap: spacing.sm,
+          }}
+        >
+          <Text style={{ ...typography.label, color: t.textMuted }}>Il tuo account</Text>
+          <Text selectable style={{ ...typography.bodyStrong, color: t.text }}>{email}</Text>
+          {status?.hasAccess && status.plan
+            ? (
+              <Text style={{ ...typography.small, color: t.textMuted }}>
+                Piano {PLANS[status.plan].name}
+                {status.expiresAt ? ` · fino al ${new Date(status.expiresAt).toLocaleDateString("it-IT")}` : ""}
+              </Text>
+            )
+            : (
+              <Text style={{ ...typography.small, color: t.textMuted }}>
+                Comunica questa email a chi ti ha invitato.
+              </Text>
+            )}
+        </View>
+
+        {hasAccess
+          ? <Button label="Torna a scrivere" onPress={() => router.replace("/create")} />
+          : <Button label="Ho ricevuto l'accesso · Controlla" loading={checking} onPress={() => void onCheck()} />}
+
+        <View style={{ flexDirection: "row", justifyContent: "center", gap: spacing.lg }}>
+          <PressableScale onPress={() => void Linking.openURL(LINKS.privacy)}>
+            <Text style={{ ...typography.small, color: t.textMuted }}>Privacy</Text>
+          </PressableScale>
+          <PressableScale onPress={() => void signOut().then(() => router.replace("/"))}>
+            <Text style={{ ...typography.small, color: t.textMuted }}>Esci</Text>
+          </PressableScale>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+function StorePaywall() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ plan?: string; mode?: string }>();

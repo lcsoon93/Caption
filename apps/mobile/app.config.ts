@@ -38,7 +38,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-font",
     ["expo-splash-screen", { image: "./assets/splash.png", imageWidth: 200, backgroundColor: "#0B0B0F" }],
   ],
-  experiments: { typedRoutes: true },
+  // Hosting in una sottocartella (es. GitHub Pages: /Caption). Vuoto = radice del dominio.
+  experiments: { typedRoutes: true, baseUrl: process.env.EXPO_PUBLIC_BASE_URL ?? "" },
   extra: {
     eas: { projectId: process.env.EAS_PROJECT_ID },
   },

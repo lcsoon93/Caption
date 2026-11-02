@@ -156,4 +156,53 @@ do $$ declare res jsonb; begin
   if (res ->> 'staleRefunded')::int < 1 then raise exception 'FAIL: maintenance %', res; end if;
 end $$;
 
+-- 9) Beta chiusa: accesso manuale, protetto dalle sync RevenueCat, revocabile, non chiamabile dal client.
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-00000000000c', 'Beta@Test.it');
+do $$ declare r text; s record; begin
+  r := public.grant_beta_access('beta@test.it');
+  select * into s from public.subscriptions where user_id = '00000000-0000-0000-0000-00000000000c';
+  if s.plan <> 'pro' or s.status <> 'trial' or s.store <> 'manual' or s.expires_at < now() + interval '29 days' then
+    raise exception 'FAIL: grant_beta_access %', row_to_json(s);
+  end if;
+  perform * from public.reserve_generation('00000000-0000-0000-0000-00000000000c', 'generate', 'pro',
+    1, null, 1000, 6, 30, 3000000, 'selfie', 'diretto', null, null, 'm', 'v1');
+  -- sync RevenueCat senza abbonamento: l'accesso beta resta
+  update public.subscriptions set plan = null, status = 'none', store = null, expires_at = null
+   where user_id = '00000000-0000-0000-0000-00000000000c';
+  if (select status from public.subscriptions where user_id = '00000000-0000-0000-0000-00000000000c') <> 'trial' then
+    raise exception 'FAIL: RC sync wiped beta access';
+  end if;
+  -- un acquisto vero invece sostituisce l'accesso beta
+  update public.subscriptions set plan = 'standard', status = 'active', store = 'app_store'
+   where user_id = '00000000-0000-0000-0000-00000000000c';
+  if (select store from public.subscriptions where user_id = '00000000-0000-0000-0000-00000000000c') <> 'app_store' then
+    raise exception 'FAIL: real purchase blocked by beta guard';
+  end if;
+  r := public.grant_beta_access('beta@test.it', 'standard', 7);
+  r := public.revoke_beta_access('beta@test.it');
+  if (select status from public.subscriptions where user_id = '00000000-0000-0000-0000-00000000000c') <> 'expired' then
+    raise exception 'FAIL: revoke_beta_access';
+  end if;
+  begin
+    r := public.grant_beta_access('nessuno@test.it');
+    raise exception 'FAIL: grant for unknown email';
+  exception when sqlstate 'P0001' then
+    if sqlerrm not like 'Nessun account%' then raise exception 'FAIL: got %', sqlerrm; end if;
+  end;
+end $$;
+set role authenticated;
+do $$ begin
+  begin
+    perform public.grant_beta_access('a@test.it');
+    raise exception 'FAIL: client called grant_beta_access';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform * from public.beta_testers;
+    raise exception 'FAIL: client read beta_testers';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+
 \echo 'ALL DB TESTS PASSED'

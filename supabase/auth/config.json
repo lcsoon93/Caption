@@ -1,6 +1,1 @@
-{
-  "site_url": "https://caption-web-ems4.onrender.com",
-  "uri_allow_list": "https://caption-web-ems4.onrender.com/**,caption://**,exp://**",
-  "mailer_otp_length": 6,
-  "mailer_otp_exp": 600
-}
+{"site_url": "https://caption-web-ems4.onrender.com", "uri_allow_list": "https://caption-web-ems4.onrender.com/**,https://lcsoon93.github.io/Caption/**,caption://**,exp://**", "mailer_otp_length": 6, "mailer_otp_exp": 600}

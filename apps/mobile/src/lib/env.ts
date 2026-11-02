@@ -19,6 +19,10 @@ export const env = {
   googleAuthEnabled: process.env.EXPO_PUBLIC_GOOGLE_AUTH_ENABLED === "true",
   posthogKey: process.env.EXPO_PUBLIC_POSTHOG_KEY ?? null,
   posthogHost: process.env.EXPO_PUBLIC_POSTHOG_HOST ?? "https://eu.i.posthog.com",
+  /** Beta chiusa: niente acquisti, l'accesso lo concede l'amministratore ai tester invitati. */
+  closedBeta: process.env.EXPO_PUBLIC_CLOSED_BETA === "true",
+  /** Sottocartella del sito web (es. "/Caption" su GitHub Pages), senza "/" finale. */
+  webBasePath: (process.env.EXPO_PUBLIC_BASE_URL ?? "").replace(/\/+$/, ""),
 } as const;
 
 export const IS_WEB = Platform.OS === "web";
