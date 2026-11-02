@@ -64,13 +64,15 @@ jobs:
       # per errore a questo database: la togliamo dallo storico (la migrazione
       # 20261025000000 rimuove schema e utente). Innocuo se la riga non c'è più.
       - name: Pulizia storico migrazioni esterne
-        run: supabase migration repair --status reverted 20261024230537 --linked || true
+        run: supabase migration repair --status reverted 20261024230537 --linked --yes || true
 
+      # Le versioni recenti della CLI chiedono conferma prima di modificare la produzione:
+      # in CI non c'è un terminale, quindi si conferma con --yes.
       - name: Migrazioni database
-        run: supabase db push --linked
+        run: supabase db push --linked --yes
 
       - name: Edge Functions
-        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_ID"
+        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_ID" --yes
 
       - name: Riepilogo
         run: |
