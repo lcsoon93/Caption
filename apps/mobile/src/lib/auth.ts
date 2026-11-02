@@ -5,7 +5,7 @@ import * as Crypto from "expo-crypto";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
-import { IS_WEB } from "./env";
+import { env, IS_WEB } from "./env";
 import { supabase } from "./supabase";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -65,7 +65,7 @@ export async function signInWithGoogle(): Promise<void> {
 
 /** Dove riporta il link "magico" nell'email (app/auth-callback.tsx scambia il codice). */
 export function authCallbackUrl(): string {
-  return IS_WEB ? `${window.location.origin}/auth-callback` : Linking.createURL("auth-callback");
+  return IS_WEB ? `${window.location.origin}${env.webBasePath}/auth-callback` : Linking.createURL("auth-callback");
 }
 
 /**

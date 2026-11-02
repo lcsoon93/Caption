@@ -205,13 +205,33 @@ Differenze sul web: niente acquisti (l'abbonamento si attiva dall'app mobile e v
 sul web; RevenueCat Web Billing è un passo successivo), login con email o Google (redirect su
 `/auth-callback`, da aggiungere agli URL consentiti in Supabase), niente Sign in with Apple.
 
+### 7. Beta chiusa (web su GitHub Pages + Groq)
+
+- **Sito:** `.github/workflows/deploy-pages.yml` pubblica la build web in modalità beta su
+  `https://lcsoon93.github.io/Caption/`. Una tantum: Settings → Pages → Source = *GitHub Actions*.
+  Pages con repo privato richiede un piano GitHub a pagamento; su repo privato il workflow
+  parte solo a mano (Actions → *Deploy web beta* → Run workflow).
+- **Modalità beta** (`EXPO_PUBLIC_CLOSED_BETA=true`): il paywall diventa "accesso solo su invito",
+  niente prezzi né acquisti.
+- **Invitare un tester:** il tester accede una volta (si crea l'account), poi in SQL Editor:
+  ```sql
+  select public.grant_beta_access('email@tester.it');               -- Pro, 30 giorni
+  select public.grant_beta_access('email@tester.it', 'standard', 14);
+  select public.revoke_beta_access('email@tester.it');
+  select * from public.beta_testers;
+  ```
+- **AI:** secrets `AI_PROVIDER=groq` e `GROQ_API_KEY` (console.groq.com). Per la versione
+  pubblica si torna a Claude con `AI_PROVIDER=anthropic`.
+- **Email:** l'SMTP integrato di Supabase (piano gratuito) invia solo ai membri del team del
+  progetto: per tester esterni serve un SMTP proprio (es. Resend con un dominio).
+
 ## Variabili d'ambiente
 
 ### Edge Functions (secrets Supabase)
 
 | Variabile | Obbl. | Default | Descrizione |
 | --- | --- | --- | --- |
-| `AI_PROVIDER` | | `anthropic` | `gemini` solo per sviluppo/test (vedi sotto) |
+| `AI_PROVIDER` | | `anthropic` | `groq` per la beta chiusa, `gemini` solo per sviluppo/test |
 | `ANTHROPIC_API_KEY` | ✓¹ | | Chiave API Anthropic (solo server) |
 | `ANTHROPIC_MODEL` | | `claude-sonnet-5-5` | Modello |
 | `ANTHROPIC_EFFORT` | | `low` | `low` / `medium` / `high` |
@@ -222,12 +242,17 @@ sul web; RevenueCat Web Billing è un passo successivo), login con email o Googl
 | `REVENUECAT_SECRET_API_KEY` | ✓ | | Secret API key v1 |
 | `REVENUECAT_WEBHOOK_AUTH` | ✓ | | Segreto condiviso del webhook |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | auto | | Iniettate da Supabase |
+| `GROQ_API_KEY` | ✓³ | | Chiave Groq (console.groq.com) |
+| `GROQ_MODEL` | | `openai/gpt-oss-120b` | Modello con output JSON "strict" |
+| `GROQ_REASONING_EFFORT` | | `low` | `low` / `medium` / `high` (solo gpt-oss) |
+| `GROQ_TIMEOUT_MS` | | `20000` | Timeout della chiamata |
+| `GROQ_PRICE_INPUT_PER_MTOK`, `GROQ_PRICE_OUTPUT_PER_MTOK` | | `0.15` / `0.6` | Prezzi di listino per il contatore costi |
 | `GEMINI_API_KEY` | ✓² | | Chiave Google AI Studio |
 | `GEMINI_MODEL` | | `gemini-3.8-flash` | Modello Gemini |
 | `GEMINI_THINKING_LEVEL` | | `LOW` | `MINIMAL` / `LOW` / `MEDIUM` / `HIGH` |
 | `GEMINI_PRICE_INPUT_PER_MTOK`, `GEMINI_PRICE_OUTPUT_PER_MTOK` | | `0` | Prezzi per il contatore costi (0 = piano gratuito) |
 
-¹ con `AI_PROVIDER=anthropic` · ² con `AI_PROVIDER=gemini`
+¹ con `AI_PROVIDER=anthropic` · ² con `AI_PROVIDER=gemini` · ³ con `AI_PROVIDER=groq`
 
 **Gemini è solo per sviluppo e test.** Il piano gratuito consente a Google di usare i testi
 inviati per migliorare i propri prodotti: non usarlo con utenti reali. Il prompt è calibrato
@@ -237,7 +262,8 @@ Per tornare a Claude: `AI_PROVIDER=anthropic` (o rimuovi la variabile) e imposta
 ### App (`EXPO_PUBLIC_*`, finiscono nel bundle: solo valori pubblici)
 
 `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_REVENUECAT_IOS_KEY`,
-`EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`, `EXPO_PUBLIC_POSTHOG_KEY`, `EXPO_PUBLIC_POSTHOG_HOST`.
+`EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`, `EXPO_PUBLIC_POSTHOG_KEY`, `EXPO_PUBLIC_POSTHOG_HOST`,
+`EXPO_PUBLIC_CLOSED_BETA` (beta chiusa), `EXPO_PUBLIC_BASE_URL` (sito in sottocartella, es. `/Caption`).
 
 ---
 

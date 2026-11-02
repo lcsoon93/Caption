@@ -12,6 +12,7 @@ import { LINKS } from "@/constants/links";
 import { analytics } from "@/lib/analytics";
 import { api } from "@/lib/api";
 import { confirmDestructive, notify } from "@/lib/dialog";
+import { env } from "@/lib/env";
 import { openManageSubscriptions, PURCHASES_AVAILABLE, restorePurchases } from "@/lib/purchases";
 import { storage } from "@/lib/storage";
 import { useSession } from "@/providers/SessionProvider";
@@ -27,7 +28,7 @@ function statusLine(status: SubscriptionStatus, expiresAt: string | null, willRe
     case "active":
       return willRenew ? `Si rinnova il ${formatDay(expiresAt)}` : `Attivo fino al ${formatDay(expiresAt)}`;
     case "trial":
-      return `Prova gratuita fino al ${formatDay(expiresAt)}`;
+      return env.closedBeta ? `Beta tester · fino al ${formatDay(expiresAt)}` : `Prova gratuita fino al ${formatDay(expiresAt)}`;
     case "cancelled":
       return `Disdetto · attivo fino al ${formatDay(expiresAt)}`;
     case "in_grace_period":
