@@ -1,0 +1,53 @@
+name: Diagnostica AI
+
+# Legge dai log delle Edge Functions gli eventi AI recenti (errori, latenze) per capire
+# perché una generazione fallisce. Avvio a mano: Actions → Diagnostica AI → Run workflow.
+# Il repository è pubblico, quindi i log di questo workflow sono visibili a tutti:
+# si stampano SOLO nome evento, provider, modello, stato HTTP, finish reason e latenza —
+# mai testi, caption o dettagli delle risposte.
+
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: "Minuti da analizzare (max 1440)"
+        default: "120"
+
+permissions:
+  contents: read
+
+jobs:
+  logs:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      MINUTES: ${{ inputs.minutes }}
+    steps:
+      - name: Eventi AI
+        run: |
+          set -euo pipefail
+          m=$(( ${MINUTES:-120} > 1440 ? 1440 : ${MINUTES:-120} ))
+          start=$(date -u -d "-$m minutes" +%Y-%m-%dT%H:%M:%SZ)
+          end=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          sql="select timestamp, event_message from function_logs where event_message like '%\"event\":%' order by timestamp desc limit 300"
+          curl -fsS -G "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_ID/analytics/endpoints/logs.all" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            --data-urlencode "sql=$sql" \
+            --data-urlencode "iso_timestamp_start=$start" \
+            --data-urlencode "iso_timestamp_end=$end" > /tmp/logs.json
+          # Solo campi tecnici: niente "detail", testi o id utente.
+          jq -r '
+            (.result // [])[]
+            | (.event_message | try fromjson catch null) as $e
+            | select($e != null and ($e.event | type) == "string")
+            | select($e.event | test("^(ai_|generation_)"))
+            | [ $e.ts // "", $e.level // "", $e.event,
+                ($e.provider // ""), ($e.model // $e.visionModel // ""),
+                ("status=" + (($e.status // "") | tostring)),
+                ("finish=" + (($e.finishReason // $e.reason // "") | tostring)),
+                ("latencyMs=" + (($e.latencyMs // "") | tostring)),
+                ("got=" + (($e.got // "") | tostring)) ]
+            | @tsv' /tmp/logs.json | tee /tmp/events.tsv
+          echo "Eventi trovati: $(wc -l < /tmp/events.tsv)"
+          if jq -e '.error' /tmp/logs.json >/dev/null; then echo "::warning::Risposta API: $(jq -c '.error' /tmp/logs.json | head -c 300)"; fi
