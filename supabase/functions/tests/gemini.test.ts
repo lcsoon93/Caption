@@ -74,3 +74,13 @@ Deno.test("gemini: errori mappati sui codici dell'app", async () => {
     "ai_bad_output",
   );
 });
+
+Deno.test("gemini: la foto va come inlineData prima del testo", async () => {
+  const seen: { url?: string; init?: RequestInit } = {};
+  await createGeminiModel(CONFIG, fakeFetch(200, OK_BODY, seen)).complete("msg", {
+    mediaType: "image/png",
+    data: "QUJD",
+  });
+  const body = JSON.parse(seen.init!.body as string);
+  assertEquals(body.contents[0].parts, [{ inlineData: { mimeType: "image/png", data: "QUJD" } }, { text: "msg" }]);
+});

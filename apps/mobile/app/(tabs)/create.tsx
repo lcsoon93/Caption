@@ -11,6 +11,7 @@ import { Banner } from "@/components/Banner";
 import { Button } from "@/components/Button";
 import { CaptionCard } from "@/components/CaptionCard";
 import { Chip } from "@/components/Chip";
+import { PhotoPicker } from "@/components/PhotoPicker";
 import { Screen } from "@/components/Screen";
 import { SectionLabel } from "@/components/SectionLabel";
 import { SkeletonCard } from "@/components/SkeletonCard";
@@ -122,10 +123,16 @@ export default function Create() {
             )
             : null}
 
-          {/* Tipo di post */}
+          {/* Foto (facoltativa) */}
+          <PhotoPicker photo={gen.photo} onChange={gen.setPhoto} disabled={gen.phase === "generating"} />
+
+          {/* Tipo di post: con la foto è facoltativo ("Dalla foto") */}
           <View>
-            <SectionLabel>Che post è?</SectionLabel>
+            <SectionLabel>{gen.photo ? "Che post è? (facoltativo)" : "Che post è?"}</SectionLabel>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
+              {gen.photo
+                ? <Chip label="Dalla foto" emoji="✨" selected={gen.postType === null} onPress={() => gen.setPostType(null)} />
+                : null}
               {POST_TYPES.map((type) => (
                 <Chip
                   key={type}

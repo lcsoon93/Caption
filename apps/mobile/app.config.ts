@@ -36,6 +36,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-router",
     "expo-apple-authentication",
     "expo-font",
+    [
+      "expo-image-picker",
+      {
+        photosPermission: "Caption usa la foto che scegli solo per scrivere la caption. Non la salviamo.",
+        cameraPermission: "Caption usa la foto che scatti solo per scrivere la caption. Non la salviamo.",
+        microphonePermission: false,
+      },
+    ],
     ["expo-splash-screen", { image: "./assets/splash.png", imageWidth: 200, backgroundColor: "#0B0B0F" }],
   ],
   // Hosting in una sottocartella (es. GitHub Pages: /Caption). Vuoto = radice del dominio.

@@ -14,6 +14,13 @@ Regole:
 2. Bump semantico: major = cambia lo schema JSON, minor = cambiano regole/stile, patch = refusi.
 3. Il system prompt resta statico (niente date o dati utente) per non invalidare il prompt caching.
 
+## caption-v1.1.0 — 2026-11-03 (`caption.v2.ts`)
+
+- Foto facoltativa: sezione FOTO (partire da ciò che si vede, accompagnare e non descrivere, `tipo_post: da_foto` quando
+  il tipo va dedotto, niente riconoscimento di persone o tratti sensibili).
+- Il testo visibile nella foto è trattato come materiale, non come istruzioni.
+- Messaggio utente: nuova riga `foto: allegata | nessuna`. Schema JSON invariato.
+
 ## caption-v1.0.0 — 2026-10-19
 
 - Prima versione: system prompt in italiano con guida per 7 toni e 9 tipi di post.

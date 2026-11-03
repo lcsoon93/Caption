@@ -109,6 +109,8 @@ export function createHandler(deps: HandlerDeps): (req: Request) => Promise<Resp
           allowHashtags = rules.smartHashtags && request.includeHashtags === true;
           userMessage = buildGenerateMessage({
             postType: request.postType,
+            autoPostType: request.autoPostType === true,
+            hasImage: request.image !== undefined,
             tone: request.tone,
             count,
             hashtags: allowHashtags,
@@ -163,7 +165,8 @@ export function createHandler(deps: HandlerDeps): (req: Request) => Promise<Resp
 
         let result: ModelResult;
         try {
-          result = await deps.model.complete(userMessage);
+          // La foto (se c'è) va solo al modello: non viene salvata né registrata nei log.
+          result = await deps.model.complete(userMessage, request.action === "generate" ? request.image : undefined);
         } catch (err) {
           const usage = err instanceof AiCallError ? err.usage : EMPTY_USAGE;
           const served = (err instanceof AiCallError && err.modelServed) || deps.model.model;
@@ -203,6 +206,7 @@ export function createHandler(deps: HandlerDeps): (req: Request) => Promise<Resp
           outputTokens: result.usage.outputTokens,
           costMicros: cost,
           promptVersion: PROMPT_VERSION,
+          withImage: request.action === "generate" && request.image !== undefined,
         });
 
         const limit = reservation.creditsLimit;

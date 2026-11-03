@@ -12,6 +12,9 @@ const CONFIG: GroqConfig = {
   timeoutMs: 5000,
   priceInput: 0.15,
   priceOutput: 0.6,
+  visionModel: "qwen/qwen3.8-27b",
+  visionPriceInput: 0.8,
+  visionPriceOutput: 4,
 };
 
 function fakeFetch(status: number, body: unknown, seen: { url?: string; init?: RequestInit } = {}): typeof fetch {
@@ -52,7 +55,7 @@ Deno.test("groq: richiesta OpenAI-compatibile con schema strict e chiave nell'he
 
 Deno.test("groq: parametri di ragionamento solo per i modelli gpt-oss", async () => {
   const seen: { url?: string; init?: RequestInit } = {};
-  await createGroqModel({ ...CONFIG, model: "qwen/qwen3.8-27b" }, fakeFetch(200, OK_BODY, seen)).complete("m");
+  await createGroqModel({ ...CONFIG, model: "llama-3.3-70b-versatile" }, fakeFetch(200, OK_BODY, seen)).complete("m");
   const body = JSON.parse(seen.init!.body as string);
   assertEquals("reasoning_effort" in body, false);
   assertEquals("include_reasoning" in body, false);
@@ -80,4 +83,21 @@ Deno.test("groq: errori mappati sui codici dell'app", async () => {
     await code(200, { choices: [{ message: { content: "non json" }, finish_reason: "stop" }] }),
     "ai_bad_output",
   );
+});
+
+Deno.test("groq: con la foto usa il modello visivo e la invia come data URI", async () => {
+  const seen: { url?: string; init?: RequestInit } = {};
+  const reply = { ...OK_BODY, model: "qwen/qwen3.8-27b" };
+  const res = await createGroqModel(CONFIG, fakeFetch(200, reply, seen))
+    .complete("msg", { mediaType: "image/jpeg", data: "QUJD" });
+  const body = JSON.parse(seen.init!.body as string);
+  assertEquals(body.model, "qwen/qwen3.8-27b");
+  assertEquals(body.reasoning_effort, "none");
+  assertEquals("include_reasoning" in body, false);
+  assertEquals(body.messages[1].content, [
+    { type: "image_url", image_url: { url: "data:image/jpeg;base64,QUJD" } },
+    { type: "text", text: "msg" },
+  ]);
+  // prezzo del modello visivo: 200×0,8 + 300×4 + 1000×0,4
+  assertEquals(costMicros(res.modelServed, res.usage), 1760);
 });

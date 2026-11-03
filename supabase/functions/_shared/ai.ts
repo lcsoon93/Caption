@@ -1,6 +1,7 @@
 // Adattatore verso l'API Anthropic. La chiave vive solo qui (lato server).
 
 import { Anthropic } from "./deps.ts";
+import type { ImageInput } from "./domain/index.ts";
 import type { AiConfig } from "./env.ts";
 import { AppError, log } from "./http.ts";
 import type { TokenUsage } from "./pricing.ts";
@@ -28,7 +29,8 @@ export class AiCallError extends AppError {
 
 export interface CaptionModel {
   readonly model: string;
-  complete(userMessage: string): Promise<ModelResult>;
+  /** `image`: foto del post (facoltativa), inviata solo al modello e mai salvata. */
+  complete(userMessage: string, image?: ImageInput): Promise<ModelResult>;
 }
 
 export function createAnthropicModel(config: AiConfig): CaptionModel {
@@ -36,7 +38,7 @@ export function createAnthropicModel(config: AiConfig): CaptionModel {
 
   return {
     model: config.model,
-    async complete(userMessage: string): Promise<ModelResult> {
+    async complete(userMessage: string, image?: ImageInput): Promise<ModelResult> {
       const started = performance.now();
       let response;
       try {
@@ -45,7 +47,16 @@ export function createAnthropicModel(config: AiConfig): CaptionModel {
           max_tokens: config.maxTokens,
           // System prompt statico + breakpoint di cache: le richieste successive leggono dalla cache.
           system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
-          messages: [{ role: "user", content: userMessage }],
+          messages: [{
+            role: "user",
+            content: image
+              ? [
+                // Immagine prima del testo: è il riferimento per tutta la richiesta.
+                { type: "image", source: { type: "base64", media_type: image.mediaType, data: image.data } },
+                { type: "text", text: userMessage },
+              ]
+              : userMessage,
+          }],
           output_config: {
             effort: config.effort,
             format: { type: "json_schema", schema: OUTPUT_SCHEMA },
