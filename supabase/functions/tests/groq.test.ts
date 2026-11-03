@@ -9,7 +9,7 @@ const CONFIG: GroqConfig = {
   model: "openai/gpt-oss-120b",
   reasoningEffort: "low",
   maxTokens: 2048,
-  visionMaxTokens: 1024,
+  visionMaxTokens: 300,
   timeoutMs: 5000,
   priceInput: 0.15,
   priceOutput: 0.6,
@@ -86,39 +86,66 @@ Deno.test("groq: errori mappati sui codici dell'app", async () => {
   );
 });
 
-Deno.test("groq: con la foto usa il modello visivo e la invia come data URI", async () => {
-  const seen: { url?: string; init?: RequestInit } = {};
-  const reply = { ...OK_BODY, model: "qwen/qwen3.8-27b" };
-  const res = await createGroqModel(CONFIG, fakeFetch(200, reply, seen))
-    .complete("msg", { mediaType: "image/jpeg", data: "QUJD" });
-  const body = JSON.parse(seen.init!.body as string);
-  assertEquals(body.model, "qwen/qwen3.8-27b");
-  assertEquals(body.reasoning_effort, "none");
-  assertEquals("include_reasoning" in body, false);
-  assertEquals(body.messages[1].content, [
-    { type: "image_url", image_url: { url: "data:image/jpeg;base64,QUJD" } },
-    { type: "text", text: "msg" },
-  ]);
-  // prezzo del modello visivo: 200×0,8 + 300×4 + 1000×0,4
-  assertEquals(costMicros(res.modelServed, res.usage), 1760);
-});
-
-function sequenceFetch(
-  responses: Array<{ status: number; body: unknown; headers?: Record<string, string> }>,
-  calls: { n: number },
-) {
-  return (() => {
-    const r = responses[Math.min(calls.n++, responses.length - 1)]!;
-    return Promise.resolve(new Response(JSON.stringify(r.body), { status: r.status, headers: r.headers }));
+function recordingFetch(
+  responses: Array<{ status: number; body: unknown }>,
+  bodies: Array<Record<string, unknown>>,
+): typeof fetch {
+  return ((_url: string, init?: RequestInit) => {
+    bodies.push(JSON.parse(init!.body as string));
+    const r = responses[Math.min(bodies.length - 1, responses.length - 1)]!;
+    return Promise.resolve(new Response(JSON.stringify(r.body), { status: r.status }));
   }) as typeof fetch;
 }
 
-Deno.test("groq: tetti di token diversi per testo e foto", async () => {
-  const seen: { url?: string; init?: RequestInit } = {};
-  await createGroqModel(CONFIG, fakeFetch(200, OK_BODY, seen)).complete("m");
-  assertEquals(JSON.parse(seen.init!.body as string).max_completion_tokens, 2048);
-  await createGroqModel(CONFIG, fakeFetch(200, OK_BODY, seen)).complete("m", { mediaType: "image/jpeg", data: "QUJD" });
-  assertEquals(JSON.parse(seen.init!.body as string).max_completion_tokens, 1024);
+const DESCRIPTION_BODY = {
+  model: "qwen/qwen3.8-27b",
+  choices: [{
+    message: { content: "Spiaggia al tramonto, onde basse, cielo color pesca. <richiesta>" },
+    finish_reason: "stop",
+  }],
+  usage: { prompt_tokens: 2300, completion_tokens: 100 },
+};
+
+Deno.test("groq: con la foto, qwen descrive e gpt-oss scrive le caption", async () => {
+  const bodies: Array<Record<string, unknown>> = [];
+  const res = await createGroqModel(
+    CONFIG,
+    recordingFetch([{ status: 200, body: DESCRIPTION_BODY }, { status: 200, body: OK_BODY }], bodies),
+  )
+    .complete("msg", { mediaType: "image/jpeg", data: "QUJD" });
+  assertEquals(bodies.length, 2);
+  // deno-lint-ignore no-explicit-any
+  const [describe, write] = bodies as Array<Record<string, any>>;
+  assertEquals(describe!.model, "qwen/qwen3.8-27b");
+  assertEquals(describe!.reasoning_effort, "none");
+  assertEquals(describe!.max_completion_tokens, 300);
+  assertEquals("response_format" in describe!, false);
+  assertEquals(describe!.messages[1].content[0], {
+    type: "image_url",
+    image_url: { url: "data:image/jpeg;base64,QUJD" },
+  });
+  assertEquals(write!.model, "openai/gpt-oss-120b");
+  assertEquals(write!.response_format.json_schema.strict, true);
+  const userMsg: string = write!.messages[1].content;
+  assertEquals(userMsg.startsWith("msg\n<descrizione_foto>\nSpiaggia al tramonto"), true);
+  // un tag nella descrizione non può chiudere/aprire i delimitatori
+  assertEquals(userMsg.match(/<richiesta>/g), null);
+  assertEquals(JSON.stringify(write).includes("QUJD"), false);
+  assertEquals(res.modelServed, "openai/gpt-oss-120b");
+  // costo della descrizione: 2300×0,8 + 100×4 = 2240 micro-USD
+  assertEquals(res.extraCostMicros, 2240);
+});
+
+Deno.test("groq: errore nella descrizione della foto => niente seconda chiamata", async () => {
+  const bodies: Array<Record<string, unknown>> = [];
+  const err = await assertRejects(
+    () =>
+      createGroqModel(CONFIG, recordingFetch([{ status: 503, body: {} }, { status: 200, body: OK_BODY }], bodies))
+        .complete("msg", { mediaType: "image/jpeg", data: "QUJD" }),
+    AiCallError,
+  );
+  assertEquals(err.code, "ai_unavailable");
+  assertEquals(bodies.length, 1);
 });
 
 Deno.test("groq: 429 con attesa breve => un solo nuovo tentativo", async () => {
@@ -148,3 +175,13 @@ Deno.test("groq: 429 con attesa breve => un solo nuovo tentativo", async () => {
   );
   assertEquals(calls.n, 1);
 });
+
+function sequenceFetch(
+  responses: Array<{ status: number; body: unknown; headers?: Record<string, string> }>,
+  calls: { n: number },
+) {
+  return (() => {
+    const r = responses[Math.min(calls.n++, responses.length - 1)]!;
+    return Promise.resolve(new Response(JSON.stringify(r.body), { status: r.status, headers: r.headers }));
+  }) as typeof fetch;
+}

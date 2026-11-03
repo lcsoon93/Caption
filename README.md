@@ -257,7 +257,7 @@ sul web; RevenueCat Web Billing è un passo successivo), login con email o Googl
 | `GROQ_REASONING_EFFORT` | | `low` | `low` / `medium` / `high` (solo gpt-oss) |
 | `GROQ_TIMEOUT_MS` | | `20000` | Timeout della chiamata |
 | `GROQ_PRICE_INPUT_PER_MTOK`, `GROQ_PRICE_OUTPUT_PER_MTOK` | | `0.15` / `0.6` | Prezzi di listino per il contatore costi |
-| `GROQ_VISION_MODEL` | | `qwen/qwen3.8-27b` | Modello per le richieste con foto |
+| `GROQ_VISION_MODEL` | | `qwen/qwen3.8-27b` | Descrive la foto; le caption le scrive poi `GROQ_MODEL` |
 | `GROQ_VISION_PRICE_INPUT_PER_MTOK`, `GROQ_VISION_PRICE_OUTPUT_PER_MTOK` | | `0.8` / `4` | Prezzi del modello visivo |
 | `GEMINI_API_KEY` | ✓² | | Chiave Google AI Studio |
 | `GEMINI_MODEL` | | `gemini-3.8-flash` | Modello Gemini |

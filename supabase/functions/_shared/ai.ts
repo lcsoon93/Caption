@@ -14,6 +14,8 @@ export interface ModelResult {
   modelServed: string;
   usage: TokenUsage;
   latencyMs: number;
+  /** Costo di passaggi preliminari su altri modelli (es. descrizione della foto). */
+  extraCostMicros?: number;
 }
 
 /** Errore AI che porta con sé i token già consumati (per contabilizzare il costo). */

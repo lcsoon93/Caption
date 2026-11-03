@@ -176,7 +176,7 @@ export function createHandler(deps: HandlerDeps): (req: Request) => Promise<Resp
           throw err;
         }
 
-        const cost = costMicros(result.modelServed, result.usage);
+        const cost = costMicros(result.modelServed, result.usage) + (result.extraCostMicros ?? 0);
         const captions = sanitizeCaptions(result.output, { count, allowHashtags });
         if (captions.length < minimumAcceptable(count)) {
           log("warn", "ai_too_few_captions", { model: result.modelServed, got: captions.length, requested: count });
