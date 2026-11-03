@@ -9,9 +9,13 @@ const MAX_TEXT_LENGTH = 600;
 const MAX_HASHTAGS = 10;
 const HASHTAG_IN_TEXT = /(^|\s)#[\p{L}\p{N}_]+/gu;
 const WRAPPING_QUOTES = /^["'“”«»‘’]+|["'“”«»‘’]+$/g;
+/** Caption in italiano (o inglese): un alfabeto diverso è un errore del modello, non stile. */
+const FOREIGN_SCRIPT =
+  /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Cyrillic}\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Thai}\p{Script=Devanagari}\p{Script=Greek}]/u;
 
 export function normalizeHashtag(raw: string): string | null {
   const body = raw.trim().replace(/^#+/, "").toLowerCase().replace(/[^\p{L}\p{N}_]/gu, "");
+  if (FOREIGN_SCRIPT.test(body)) return null;
   if (body.length < 2 || body.length > 40) return null;
   return `#${body}`;
 }
@@ -44,7 +48,7 @@ export function sanitizeCaptions(
       .replace(WRAPPING_QUOTES, "")
       .trim()
       .slice(0, MAX_TEXT_LENGTH);
-    if (!cleanText) continue;
+    if (!cleanText || FOREIGN_SCRIPT.test(cleanText)) continue;
 
     const key = cleanText.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
     if (seen.has(key)) continue;

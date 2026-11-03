@@ -58,3 +58,16 @@ Deno.test("piani coerenti", () => {
   assertEquals(PLANS.base.allowedRefineActions.length, 0);
   assertEquals(PLANS.standard.allowedTones.length, TONES.length);
 });
+
+Deno.test("sanitizeCaptions: scarta caption e hashtag con alfabeti diversi", () => {
+  const out = sanitizeCaptions(
+    {
+      captions: [{ text: "Oro sul sale, zero滤镜.", hashtags: [] }, {
+        text: "Sale e luce ✨",
+        hashtags: ["#mare", "#海"],
+      }],
+    },
+    { count: 4, allowHashtags: true },
+  );
+  assertEquals(out, [{ text: "Sale e luce ✨", hashtags: ["#mare"] }]);
+});
