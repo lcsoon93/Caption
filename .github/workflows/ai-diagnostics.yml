@@ -31,14 +31,18 @@ jobs:
           start=$(date -u -d "-$m minutes" +%Y-%m-%dT%H:%M:%SZ)
           end=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           sql="select timestamp, event_message from function_logs where event_message like '%\"event\":%' order by timestamp desc limit 300"
-          curl -fsS -G "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_ID/analytics/endpoints/logs.all" \
+          # Endpoint unificato (SQL in dialetto ClickHouse); logs.all è dismesso.
+          code=$(curl -sS -G -o /tmp/logs.json -w "%{http_code}" \
+            "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_ID/analytics/endpoints/logs" \
             -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
             --data-urlencode "sql=$sql" \
             --data-urlencode "iso_timestamp_start=$start" \
-            --data-urlencode "iso_timestamp_end=$end" > /tmp/logs.json
+            --data-urlencode "iso_timestamp_end=$end")
+          echo "HTTP $code"
+          if [ "$code" -ge 300 ]; then head -c 400 /tmp/logs.json; echo; exit 1; fi
           # Solo campi tecnici: niente "detail", testi o id utente.
           jq -r '
-            (.result // [])[]
+            (.result // .data // [])[]
             | (.event_message | try fromjson catch null) as $e
             | select($e != null and ($e.event | type) == "string")
             | select($e.event | test("^(ai_|generation_)"))
