@@ -9,6 +9,9 @@ name: Deploy web beta (GitHub Pages)
 
 on:
   workflow_dispatch:
+  # Se in Settings → Pages la sorgente è "Deploy from a branch", GitHub pubblica anche il
+  # contenuto grezzo di main: dopo ogni sua build ripubblichiamo l'app, così l'ultima parola è nostra.
+  page_build:
   push:
     branches: [main]
     paths: ["apps/mobile/**", "packages/**", "supabase/functions/_shared/domain/**", "pnpm-lock.yaml", ".github/workflows/deploy-pages.yml"]
