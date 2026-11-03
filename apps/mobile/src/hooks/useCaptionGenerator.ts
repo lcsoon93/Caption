@@ -3,6 +3,7 @@ import { isPostType, isTone } from "@caption/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { analytics } from "@/lib/analytics";
 import { api, CaptionApiError } from "@/lib/api";
+import type { PostPhoto } from "@/lib/photo";
 import { storage } from "@/lib/storage";
 import { useSession } from "@/providers/SessionProvider";
 
@@ -18,7 +19,10 @@ function toApiError(err: unknown): CaptionApiError {
 
 export function useCaptionGenerator({ onError }: Options) {
   const { applyUsage } = useSession();
-  const [postType, setPostType] = useState<PostType>("selfie");
+  // null = tipo di post dedotto dalla foto
+  const [postType, setPostTypeState] = useState<PostType | null>("selfie");
+  const lastPostType = useRef<PostType>("selfie");
+  const [photo, setPhotoState] = useState<PostPhoto | null>(null);
   const [tone, setTone] = useState<Tone>("diretto");
   const [context, setContext] = useState("");
   const [includeHashtags, setIncludeHashtags] = useState(false);
@@ -32,9 +36,23 @@ export function useCaptionGenerator({ onError }: Options) {
   // Ripristina l'ultima combinazione usata: chi posta spesso usa sempre gli stessi mood.
   useEffect(() => {
     void storage.getLastSelection().then((last) => {
-      if (isPostType(last.postType)) setPostType(last.postType);
+      if (isPostType(last.postType)) {
+        lastPostType.current = last.postType;
+        setPostTypeState((current) => (current === null ? null : last.postType as PostType));
+      }
       if (isTone(last.tone)) setTone(last.tone);
     });
+  }, []);
+
+  const setPostType = useCallback((next: PostType | null) => {
+    if (next) lastPostType.current = next;
+    setPostTypeState(next);
+  }, []);
+
+  /** Con una foto nuova il tipo di post passa a "dalla foto"; togliendola si torna all'ultimo scelto. */
+  const setPhoto = useCallback((next: PostPhoto | null) => {
+    setPhotoState(next);
+    setPostTypeState(next ? null : lastPostType.current);
   }, []);
 
   const generate = useCallback(async () => {
@@ -43,14 +61,26 @@ export function useCaptionGenerator({ onError }: Options) {
     setError(null);
     const started = Date.now();
     const trimmed = context.trim();
-    analytics.track("generate_requested", { postType, tone, hasContext: trimmed.length > 0, includeHashtags });
+    analytics.track("generate_requested", {
+      postType: postType ?? "da_foto",
+      tone,
+      hasContext: trimmed.length > 0,
+      hasPhoto: photo !== null,
+      includeHashtags,
+    });
     try {
-      const res = await api.generate({ postType, tone, ...(trimmed ? { context: trimmed } : {}), includeHashtags });
+      const res = await api.generate({
+        ...(postType ? { postType } : {}),
+        tone,
+        ...(trimmed ? { context: trimmed } : {}),
+        ...(photo ? { image: { mediaType: photo.mediaType, data: photo.base64 } } : {}),
+        includeHashtags,
+      });
       setCaptions(res.captions);
       applyUsage(res.usage);
       setPhase("done");
-      void storage.setLastSelection({ postType, tone });
-      analytics.track("generate_succeeded", { postType, tone, count: res.captions.length, clientLatencyMs: Date.now() - started });
+      void storage.setLastSelection({ postType: postType ?? lastPostType.current, tone });
+      analytics.track("generate_succeeded", { postType: postType ?? "da_foto", tone, count: res.captions.length, clientLatencyMs: Date.now() - started });
     } catch (err) {
       const apiError = toApiError(err);
       setError(apiError);
@@ -58,7 +88,7 @@ export function useCaptionGenerator({ onError }: Options) {
       analytics.track("generate_failed", { code: apiError.code });
       onErrorRef.current(apiError, { action: "generate" });
     }
-  }, [phase, context, postType, tone, includeHashtags, applyUsage, captions.length]);
+  }, [phase, context, postType, tone, photo, includeHashtags, applyUsage, captions.length]);
 
   const refine = useCallback(async (caption: CaptionDTO, action: RefineAction) => {
     if (refining) return;
@@ -87,6 +117,8 @@ export function useCaptionGenerator({ onError }: Options) {
   return {
     postType,
     setPostType,
+    photo,
+    setPhoto,
     tone,
     setTone,
     context,

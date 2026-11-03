@@ -54,7 +54,8 @@ async function invoke<T>(name: string, body?: unknown): Promise<T> {
 }
 
 export const api = {
-  generate: (req: Omit<GenerateRequest, "action">) =>
+  /** Senza postType (e con la foto) il tipo di post lo deduce l'AI. */
+  generate: (req: Omit<GenerateRequest, "action" | "postType" | "autoPostType"> & { postType?: GenerateRequest["postType"] }) =>
     invoke<GenerateResponse>("generate-captions", { action: "generate", ...req }),
 
   refine: (req: Omit<RefineRequest, "action">) =>

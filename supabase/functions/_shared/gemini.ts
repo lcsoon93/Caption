@@ -4,6 +4,7 @@
 
 import type { CaptionModel, ModelResult } from "./ai.ts";
 import { AiCallError } from "./ai.ts";
+import type { ImageInput } from "./domain/index.ts";
 import { requireEnv } from "./env.ts";
 import { log } from "./http.ts";
 import type { TokenUsage } from "./pricing.ts";
@@ -73,7 +74,7 @@ export function createGeminiModel(config: GeminiConfig, fetchImpl: typeof fetch 
 
   return {
     model: config.model,
-    async complete(userMessage: string): Promise<ModelResult> {
+    async complete(userMessage: string, image?: ImageInput): Promise<ModelResult> {
       const started = performance.now();
       let res: Response;
       try {
@@ -85,7 +86,13 @@ export function createGeminiModel(config: GeminiConfig, fetchImpl: typeof fetch 
             signal: AbortSignal.timeout(config.timeoutMs),
             body: JSON.stringify({
               systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-              contents: [{ role: "user", parts: [{ text: userMessage }] }],
+              contents: [{
+                role: "user",
+                parts: [
+                  ...(image ? [{ inlineData: { mimeType: image.mediaType, data: image.data } }] : []),
+                  { text: userMessage },
+                ],
+              }],
               generationConfig: {
                 responseMimeType: "application/json",
                 responseJsonSchema: OUTPUT_SCHEMA,

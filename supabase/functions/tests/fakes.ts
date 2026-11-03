@@ -1,3 +1,4 @@
+import type { ImageInput } from "../_shared/domain/index.ts";
 import type { CaptionModel, ModelResult } from "../_shared/ai.ts";
 import type { PlanId, SubscriptionStatus } from "../_shared/domain/index.ts";
 import type { CaptionRow, CaptionStore, CompleteParams, Reservation, ReserveParams } from "../_shared/store.ts";
@@ -70,9 +71,11 @@ export class FakeStore implements CaptionStore {
 export class FakeModel implements CaptionModel {
   readonly model = "claude-sonnet-5-5";
   messages: string[] = [];
+  images: Array<ImageInput | undefined> = [];
   constructor(public next: () => Promise<ModelResult>) {}
-  complete(msg: string) {
+  complete(msg: string, image?: ImageInput) {
     this.messages.push(msg);
+    this.images.push(image);
     return this.next();
   }
 }

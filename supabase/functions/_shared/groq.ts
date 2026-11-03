@@ -5,6 +5,7 @@
 
 import type { CaptionModel, ModelResult } from "./ai.ts";
 import { AiCallError } from "./ai.ts";
+import type { ImageInput } from "./domain/index.ts";
 import { requireEnv } from "./env.ts";
 import { log } from "./http.ts";
 import type { TokenUsage } from "./pricing.ts";
@@ -21,6 +22,10 @@ export interface GroqConfig {
   /** USD per milione di token (listino); sul piano gratuito non si paga comunque. */
   priceInput: number;
   priceOutput: number;
+  /** Modello usato quando c'è una foto (il modello testuale non vede le immagini). */
+  visionModel: string;
+  visionPriceInput: number;
+  visionPriceOutput: number;
 }
 
 export function loadGroqConfig(): GroqConfig {
@@ -34,6 +39,9 @@ export function loadGroqConfig(): GroqConfig {
     timeoutMs: Number(Deno.env.get("GROQ_TIMEOUT_MS") ?? 20_000),
     priceInput: Number(Deno.env.get("GROQ_PRICE_INPUT_PER_MTOK") ?? 0.15),
     priceOutput: Number(Deno.env.get("GROQ_PRICE_OUTPUT_PER_MTOK") ?? 0.6),
+    visionModel: Deno.env.get("GROQ_VISION_MODEL") ?? "qwen/qwen3.8-27b",
+    visionPriceInput: Number(Deno.env.get("GROQ_VISION_PRICE_INPUT_PER_MTOK") ?? 0.8),
+    visionPriceOutput: Number(Deno.env.get("GROQ_VISION_PRICE_OUTPUT_PER_MTOK") ?? 4),
   };
 }
 
@@ -68,13 +76,28 @@ export function createGroqModel(config: GroqConfig, fetchImpl: typeof fetch = fe
     cacheRead: config.priceInput / 2,
     cacheWrite: config.priceInput,
   });
-  log("warn", "ai_provider_groq", { model: config.model, note: "beta chiusa" });
-  const isGptOss = config.model.startsWith("openai/gpt-oss");
+  setModelPrice(config.visionModel, {
+    input: config.visionPriceInput,
+    output: config.visionPriceOutput,
+    cacheRead: config.visionPriceInput / 2,
+    cacheWrite: config.visionPriceInput,
+  });
+  log("warn", "ai_provider_groq", { model: config.model, visionModel: config.visionModel, note: "beta" });
+
+  // gpt-oss: ragionamento regolabile; qwen: "none" = risposta diretta (latenza minima).
+  function reasoningParams(model: string): Record<string, unknown> {
+    if (model.startsWith("openai/gpt-oss")) {
+      return { reasoning_effort: config.reasoningEffort, include_reasoning: false };
+    }
+    if (model.startsWith("qwen/")) return { reasoning_effort: "none" };
+    return {};
+  }
 
   return {
     model: config.model,
-    async complete(userMessage: string): Promise<ModelResult> {
+    async complete(userMessage: string, image?: ImageInput): Promise<ModelResult> {
       const started = performance.now();
+      const model = image ? config.visionModel : config.model;
       let res: Response;
       try {
         res = await fetchImpl("https://api.groq.com/openai/v1/chat/completions", {
@@ -82,17 +105,25 @@ export function createGroqModel(config: GroqConfig, fetchImpl: typeof fetch = fe
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.apiKey}` },
           signal: AbortSignal.timeout(config.timeoutMs),
           body: JSON.stringify({
-            model: config.model,
+            model,
             messages: [
               { role: "system", content: SYSTEM_PROMPT },
-              { role: "user", content: userMessage },
+              {
+                role: "user",
+                content: image
+                  ? [
+                    { type: "image_url", image_url: { url: `data:${image.mediaType};base64,${image.data}` } },
+                    { type: "text", text: userMessage },
+                  ]
+                  : userMessage,
+              },
             ],
             response_format: {
               type: "json_schema",
               json_schema: { name: "captions", strict: true, schema: OUTPUT_SCHEMA },
             },
             max_completion_tokens: config.maxTokens,
-            ...(isGptOss ? { reasoning_effort: config.reasoningEffort, include_reasoning: false } : {}),
+            ...reasoningParams(model),
           }),
         });
       } catch (err) {
@@ -118,7 +149,7 @@ export function createGroqModel(config: GroqConfig, fetchImpl: typeof fetch = fe
       const body = (await res.json()) as GroqResponse;
       const latencyMs = Math.round(performance.now() - started);
       const usage = toTokenUsage(body.usage);
-      const modelServed = body.model ?? config.model;
+      const modelServed = body.model ?? model;
       const choice = body.choices?.[0];
 
       if (choice?.message?.refusal || choice?.finish_reason === "content_filter") {

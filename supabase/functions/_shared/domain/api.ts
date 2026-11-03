@@ -4,9 +4,25 @@ import type { PostType, RefineAction, Tone } from "./catalog.ts";
 import { CONTEXT_MAX_LENGTH, isPostType, isRefineAction, isTone } from "./catalog.ts";
 import type { PlanId } from "./plans.ts";
 
+/** Foto del post, già ridimensionata dall'app. Usata solo per la generazione, mai salvata. */
+export interface ImageInput {
+  mediaType: ImageMediaType;
+  /** Base64 senza prefisso `data:`. */
+  data: string;
+}
+
+export const IMAGE_MEDIA_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+export type ImageMediaType = (typeof IMAGE_MEDIA_TYPES)[number];
+/** ~1,1 MB di immagine: l'app invia JPEG di circa 1024 px (100-300 KB). */
+export const IMAGE_MAX_BASE64_LENGTH = 1_500_000;
+
 export interface GenerateRequest {
   action: "generate";
+  /** Facoltativo se c'è la foto: il tipo di post lo deduce l'AI (salvato come "altro"). */
   postType: PostType;
+  /** true quando il tipo di post va dedotto dalla foto. */
+  autoPostType?: boolean;
+  image?: ImageInput;
   tone: Tone;
   context?: string;
   /** Solo Pro: ignorato (e rimosso) per gli altri piani. */
@@ -135,7 +151,11 @@ export function parseCaptionRequest(input: unknown): ValidationResult<CaptionReq
   const body = input as Record<string, unknown>;
 
   if (body.action === "generate") {
-    if (!isPostType(body.postType)) return { ok: false, error: "postType non valido" };
+    const image = parseImage(body.image);
+    if (image === "invalid") return { ok: false, error: "image non valida" };
+    if (image === "too_large") return { ok: false, error: "image troppo grande" };
+    const autoPostType = image !== undefined && (body.postType === undefined || body.postType === null);
+    if (!autoPostType && !isPostType(body.postType)) return { ok: false, error: "postType non valido" };
     if (!isTone(body.tone)) return { ok: false, error: "tone non valido" };
     if (body.context !== undefined && body.context !== null && typeof body.context !== "string") {
       return { ok: false, error: "context deve essere una stringa" };
@@ -151,7 +171,9 @@ export function parseCaptionRequest(input: unknown): ValidationResult<CaptionReq
       ok: true,
       value: {
         action: "generate",
-        postType: body.postType,
+        postType: isPostType(body.postType) ? body.postType : "altro",
+        ...(autoPostType ? { autoPostType: true } : {}),
+        ...(image ? { image } : {}),
         tone: body.tone,
         ...(context ? { context } : {}),
         includeHashtags: body.includeHashtags === true,
@@ -166,4 +188,17 @@ export function parseCaptionRequest(input: unknown): ValidationResult<CaptionReq
   }
 
   return { ok: false, error: "action deve essere 'generate' o 'refine'" };
+}
+
+const BASE64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
+
+function parseImage(raw: unknown): ImageInput | undefined | "invalid" | "too_large" {
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== "object") return "invalid";
+  const { mediaType, data } = raw as Record<string, unknown>;
+  if (!IMAGE_MEDIA_TYPES.includes(mediaType as ImageMediaType)) return "invalid";
+  if (typeof data !== "string" || data.length < 100) return "invalid";
+  if (data.length > IMAGE_MAX_BASE64_LENGTH) return "too_large";
+  if (data.length % 4 !== 0 || !BASE64_RE.test(data)) return "invalid";
+  return { mediaType: mediaType as ImageMediaType, data };
 }

@@ -186,3 +186,43 @@ Deno.test("non autenticato: 401", async () => {
   });
   assertEquals((await handler(post({ action: "generate", postType: "cibo", tone: "soft" }))).status, 401);
 });
+
+const PHOTO = { mediaType: "image/jpeg", data: "A".repeat(400) };
+
+Deno.test("foto facoltativa: passata solo al modello, tipo di post dedotto e mai salvato", async () => {
+  const { handler, store, model } = setup();
+  const res = await handler(post({ action: "generate", tone: "soft", image: PHOTO }));
+  assertEquals(res.status, 200);
+  assertEquals(model.images[0], PHOTO);
+  assertStringIncludes(model.messages[0]!, "tipo_post: da_foto");
+  assertStringIncludes(model.messages[0]!, "foto: allegata");
+  assertEquals(store.reserves[0]!.postType, "altro");
+  // nessuna traccia della foto in ciò che finisce nel database
+  assertEquals(JSON.stringify([store.reserves, store.completed]).includes(PHOTO.data), false);
+});
+
+Deno.test("foto con tipo di post scelto e senza foto", async () => {
+  const { handler, model } = setup();
+  await handler(post({ action: "generate", postType: "cibo", tone: "soft", image: PHOTO }));
+  assertStringIncludes(model.messages[0]!, "tipo_post: cibo");
+  await handler(post({ action: "generate", postType: "cibo", tone: "soft" }));
+  assertEquals(model.images[1], undefined);
+  assertStringIncludes(model.messages[1]!, "foto: nessuna");
+});
+
+Deno.test("foto non valida o troppo grande: 400 senza chiamate AI", async () => {
+  const { handler, model } = setup();
+  const bad = [
+    { mediaType: "image/gif", data: PHOTO.data },
+    { mediaType: "image/jpeg", data: "non è base64!".repeat(20) },
+    { mediaType: "image/jpeg", data: "A".repeat(1_500_004) },
+    "stringa",
+  ];
+  for (const image of bad) {
+    const res = await handler(post({ action: "generate", tone: "soft", image }));
+    assertEquals(res.status, 400);
+  }
+  // senza foto il tipo di post resta obbligatorio
+  assertEquals((await handler(post({ action: "generate", tone: "soft" }))).status, 400);
+  assertEquals(model.messages.length, 0);
+});
