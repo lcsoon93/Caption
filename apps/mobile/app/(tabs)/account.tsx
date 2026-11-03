@@ -87,6 +87,7 @@ export default function Account() {
   }, []);
 
   const plan = status?.plan ? PLANS[status.plan] : null;
+  const isGuest = session?.user.is_anonymous ?? false;
   const usageRatio = status && status.limit ? Math.min(status.used / status.limit, 1) : 0;
 
   async function onRestore() {
@@ -213,8 +214,10 @@ export default function Account() {
           <Row icon="chatbubble-ellipses-outline" label="Supporto" onPress={() => void Linking.openURL(LINKS.support)} />
         </Group>
 
-        <Group title={session?.user.email ?? "Account"}>
-          <Row icon="log-out-outline" label="Esci" onPress={() => void signOut().then(() => router.replace("/"))} />
+        <Group title={isGuest ? "Ospite · beta" : session?.user.email ?? "Account"}>
+          {isGuest
+            ? null // un ospite che esce perde storico e accesso: niente "Esci"
+            : <Row icon="log-out-outline" label="Esci" onPress={() => void signOut().then(() => router.replace("/"))} />}
           <Row
             icon="trash-outline"
             label={busy === "delete" ? "Eliminazione…" : "Elimina account"}

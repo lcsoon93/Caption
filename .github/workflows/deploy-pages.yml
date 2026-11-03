@@ -47,6 +47,8 @@ jobs:
           EXPO_PUBLIC_SUPABASE_URL: https://ubpywayusiykkcpxbgdu.supabase.co
           EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_SIPJOsj4w4ylPgL3BUpB_A_Aj8LyWw4
           EXPO_PUBLIC_CLOSED_BETA: "true"
+          # Niente login: si entra come ospite (accessi anonimi Supabase + beta_config.open_access)
+          EXPO_PUBLIC_OPEN_BETA: "true"
           EXPO_PUBLIC_BASE_URL: ${{ steps.pages.outputs.base_path }}
         run: |
           pnpm run build:web

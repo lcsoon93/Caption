@@ -224,6 +224,16 @@ sul web; RevenueCat Web Billing è un passo successivo), login con email o Googl
   pubblica si torna a Claude con `AI_PROVIDER=anthropic`.
 - **Email:** l'SMTP integrato di Supabase (piano gratuito) invia solo ai membri del team del
   progetto: per tester esterni serve un SMTP proprio (es. Resend con un dominio).
+- **Beta aperta senza login** (`EXPO_PUBLIC_OPEN_BETA=true`, attiva su GitHub Pages): dopo la
+  presentazione si entra come *ospite* (account anonimo Supabase, legato al browser) e ogni nuovo
+  account riceve subito l'accesso beta definito in `public.beta_config` (default: Pro, 30 giorni).
+  ```sql
+  update public.beta_config set open_access = false;              -- chiude i nuovi ingressi
+  update public.beta_config set plan = 'standard', days = 14;     -- cambia piano/durata
+  select public.cleanup_guest_users(30);                           -- elimina ospiti inattivi da 30 giorni
+  ```
+  Limiti anti-abuso: 30 nuovi ospiti/ora per IP (Supabase), rate limit e tetto di spesa per utente
+  e budget globale mensile già nel backend.
 
 ## Variabili d'ambiente
 

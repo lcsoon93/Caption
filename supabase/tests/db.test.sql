@@ -3,6 +3,8 @@
 \set ON_ERROR_STOP on
 
 grant all on all tables in schema public to service_role;
+-- I test di base partono senza beta aperta (blocco 10).
+update public.beta_config set open_access = false;
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-00000000000a', 'a@test.it'),
@@ -200,6 +202,47 @@ do $$ begin
   begin
     perform * from public.beta_testers;
     raise exception 'FAIL: client read beta_testers';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+
+-- 10) Beta aperta: i nuovi account (anche ospiti) ricevono subito l'accesso; pulizia ospiti inattivi.
+update public.beta_config set open_access = true, plan = 'standard', days = 14;
+insert into auth.users (id, email, is_anonymous, created_at) values
+  ('00000000-0000-0000-0000-00000000000d', null, true, now()),
+  ('00000000-0000-0000-0000-00000000000e', null, true, now() - interval '60 days');
+do $$ declare s record; n int; begin
+  select * into s from public.subscriptions where user_id = '00000000-0000-0000-0000-00000000000d';
+  if s.plan <> 'standard' or s.status <> 'trial' or s.store <> 'manual'
+     or s.expires_at < now() + interval '13 days' or s.expires_at > now() + interval '15 days' then
+    raise exception 'FAIL: open beta grant %', row_to_json(s);
+  end if;
+  n := public.cleanup_guest_users(30);
+  if n <> 1 or exists (select 1 from auth.users where id = '00000000-0000-0000-0000-00000000000e') then
+    raise exception 'FAIL: cleanup_guest_users removed %', n;
+  end if;
+  if not exists (select 1 from auth.users where id = '00000000-0000-0000-0000-00000000000d') then
+    raise exception 'FAIL: cleanup removed an active guest';
+  end if;
+end $$;
+update public.beta_config set open_access = false;
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-00000000000f', 'chiuso@test.it');
+do $$ begin
+  if (select status from public.subscriptions where user_id = '00000000-0000-0000-0000-00000000000f') <> 'none' then
+    raise exception 'FAIL: grant with open beta off';
+  end if;
+end $$;
+set role authenticated;
+do $$ begin
+  begin
+    perform * from public.beta_config;
+    raise exception 'FAIL: client read beta_config';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.cleanup_guest_users(1);
+    raise exception 'FAIL: client called cleanup_guest_users';
   exception when insufficient_privilege then null;
   end;
 end $$;

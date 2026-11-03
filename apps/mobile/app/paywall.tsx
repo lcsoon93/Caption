@@ -50,7 +50,7 @@ function BetaGate() {
   const closable = params.mode === "upgrade" || params.mode === "expired";
   const { session, status, refreshStatus, signOut } = useSession();
   const [checking, setChecking] = useState(false);
-  const email = session?.user.email ?? "";
+  const email = session?.user.email || "Ospite (senza email)";
 
   useEffect(() => {
     analytics.track("paywall_viewed", { mode: "closed_beta", currentPlan: status?.plan ?? "none" });

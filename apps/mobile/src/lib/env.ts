@@ -21,6 +21,8 @@ export const env = {
   posthogHost: process.env.EXPO_PUBLIC_POSTHOG_HOST ?? "https://eu.i.posthog.com",
   /** Beta chiusa: niente acquisti, l'accesso lo concede l'amministratore ai tester invitati. */
   closedBeta: process.env.EXPO_PUBLIC_CLOSED_BETA === "true",
+  /** Beta aperta: niente login, si entra come ospite (account anonimo Supabase). */
+  openBeta: process.env.EXPO_PUBLIC_OPEN_BETA === "true",
   /** Sottocartella del sito web (es. "/Caption" su GitHub Pages), senza "/" finale. */
   webBasePath: (process.env.EXPO_PUBLIC_BASE_URL ?? "").replace(/\/+$/, ""),
 } as const;
