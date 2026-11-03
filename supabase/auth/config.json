@@ -1,1 +1,1 @@
-{"site_url": "https://caption-web-ems4.onrender.com", "uri_allow_list": "https://caption-web-ems4.onrender.com/**,https://lcsoon93.github.io/Caption/**,caption://**,exp://**", "mailer_otp_length": 6, "mailer_otp_exp": 600}
+{"site_url": "https://caption-web-ems4.onrender.com", "uri_allow_list": "https://caption-web-ems4.onrender.com/**,https://lcsoon93.github.io/Caption/**,caption://**,exp://**", "mailer_otp_length": 6, "mailer_otp_exp": 600, "external_anonymous_users_enabled": true, "rate_limit_anonymous_users": 30}

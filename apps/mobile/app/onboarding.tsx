@@ -8,6 +8,7 @@ import Animated, { FadeInDown, useAnimatedStyle, withSpring } from "react-native
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
+import { env } from "@/lib/env";
 import { useSession } from "@/providers/SessionProvider";
 import { radius, spacing, typography } from "@/theme/tokens";
 import { useTheme } from "@/theme/useTheme";
@@ -112,7 +113,7 @@ export default function Onboarding() {
       return;
     }
     await completeOnboarding();
-    router.replace("/sign-in");
+    router.replace(env.openBeta ? "/" : "/sign-in");
   }
 
   return (
