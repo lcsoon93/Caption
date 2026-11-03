@@ -83,6 +83,9 @@ function cleanDescription(raw: string): string {
     .slice(0, 700);
 }
 
+/** La descrizione di norma arriva in ~1 s: oltre questo tempo conviene riprovare. */
+const DESCRIBE_ATTEMPT_TIMEOUT_MS = 8000;
+
 /** Attesa massima accettata per un nuovo tentativo dopo un 429 (secondi). */
 const MAX_RETRY_WAIT_S = 4;
 
@@ -122,18 +125,30 @@ export function createGroqModel(config: GroqConfig, fetchImpl: typeof fetch = fe
   }
 
   /** Una chiamata chat con un solo nuovo tentativo sui 429 brevi; errori già mappati sui codici app. */
-  async function chat(model: string, payload: Record<string, unknown>, deadline: number): Promise<Response> {
+  async function chat(
+    model: string,
+    payload: Record<string, unknown>,
+    deadline: number,
+    /** Se impostato: ogni tentativo dura al massimo così, e un timeout si riprova una volta. */
+    attemptTimeoutMs?: number,
+  ): Promise<Response> {
     const body = JSON.stringify({ model, ...payload, ...reasoningParams(model) });
     for (let attempt = 0;; attempt++) {
       let res: Response;
+      const remaining = Math.max(deadline - Date.now(), 1);
       try {
         res = await fetchImpl("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.apiKey}` },
-          signal: AbortSignal.timeout(Math.max(deadline - Date.now(), 1)),
+          signal: AbortSignal.timeout(attemptTimeoutMs ? Math.min(attemptTimeoutMs, remaining) : remaining),
           body,
         });
       } catch (err) {
+        // A volte Groq resta appeso: un secondo tentativo breve di solito risponde in ~1 s.
+        if (attemptTimeoutMs && attempt === 0 && deadline - Date.now() > 4000) {
+          log("warn", "ai_timeout_retry", { provider: "groq", model });
+          continue;
+        }
         log("warn", "ai_connection_error", { provider: "groq", model, error: String(err) });
         throw new AiCallError("ai_unavailable");
       }
@@ -177,19 +192,24 @@ export function createGroqModel(config: GroqConfig, fetchImpl: typeof fetch = fe
    */
   async function describePhoto(image: ImageInput, deadline: number) {
     const started = performance.now();
-    const res = await chat(config.visionModel, {
-      messages: [
-        { role: "system", content: PHOTO_DESCRIPTION_PROMPT },
-        {
-          role: "user",
-          content: [
-            { type: "image_url", image_url: { url: `data:${image.mediaType};base64,${image.data}` } },
-            { type: "text", text: "Descrivi la foto." },
-          ],
-        },
-      ],
-      max_completion_tokens: config.visionMaxTokens,
-    }, deadline);
+    const res = await chat(
+      config.visionModel,
+      {
+        messages: [
+          { role: "system", content: PHOTO_DESCRIPTION_PROMPT },
+          {
+            role: "user",
+            content: [
+              { type: "image_url", image_url: { url: `data:${image.mediaType};base64,${image.data}` } },
+              { type: "text", text: "Descrivi la foto." },
+            ],
+          },
+        ],
+        max_completion_tokens: config.visionMaxTokens,
+      },
+      deadline,
+      DESCRIBE_ATTEMPT_TIMEOUT_MS,
+    );
     const reply = (await res.json()) as GroqResponse;
     const usage = toTokenUsage(reply.usage);
     const choice = reply.choices?.[0];
