@@ -185,3 +185,22 @@ function sequenceFetch(
     return Promise.resolve(new Response(JSON.stringify(r.body), { status: r.status, headers: r.headers }));
   }) as typeof fetch;
 }
+
+Deno.test("groq: descrizione appesa => un secondo tentativo", async () => {
+  let n = 0;
+  const hangingThenOk = ((_url: string, init?: RequestInit) => {
+    n++;
+    if (n === 1) {
+      return new Promise<Response>((_resolve, reject) => {
+        init!.signal!.addEventListener("abort", () => reject(new DOMException("timeout", "TimeoutError")));
+      });
+    }
+    const body = n === 2 ? DESCRIPTION_BODY : OK_BODY;
+    return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
+  }) as typeof fetch;
+  // timeout complessivo 15 s: il primo tentativo scade a 8 s, il secondo risponde subito
+  const res = await createGroqModel({ ...CONFIG, timeoutMs: 15_000 }, hangingThenOk)
+    .complete("msg", { mediaType: "image/jpeg", data: "QUJD" });
+  assertEquals(n, 3);
+  assertEquals(res.output, { captions: [{ text: "Ciao", hashtags: [] }] });
+});
