@@ -8,7 +8,8 @@ const CONFIG: GroqConfig = {
   apiKey: "test-key",
   model: "openai/gpt-oss-120b",
   reasoningEffort: "low",
-  maxTokens: 4096,
+  maxTokens: 2048,
+  visionMaxTokens: 1024,
   timeoutMs: 5000,
   priceInput: 0.15,
   priceOutput: 0.6,
@@ -100,4 +101,50 @@ Deno.test("groq: con la foto usa il modello visivo e la invia come data URI", as
   ]);
   // prezzo del modello visivo: 200×0,8 + 300×4 + 1000×0,4
   assertEquals(costMicros(res.modelServed, res.usage), 1760);
+});
+
+function sequenceFetch(
+  responses: Array<{ status: number; body: unknown; headers?: Record<string, string> }>,
+  calls: { n: number },
+) {
+  return (() => {
+    const r = responses[Math.min(calls.n++, responses.length - 1)]!;
+    return Promise.resolve(new Response(JSON.stringify(r.body), { status: r.status, headers: r.headers }));
+  }) as typeof fetch;
+}
+
+Deno.test("groq: tetti di token diversi per testo e foto", async () => {
+  const seen: { url?: string; init?: RequestInit } = {};
+  await createGroqModel(CONFIG, fakeFetch(200, OK_BODY, seen)).complete("m");
+  assertEquals(JSON.parse(seen.init!.body as string).max_completion_tokens, 2048);
+  await createGroqModel(CONFIG, fakeFetch(200, OK_BODY, seen)).complete("m", { mediaType: "image/jpeg", data: "QUJD" });
+  assertEquals(JSON.parse(seen.init!.body as string).max_completion_tokens, 1024);
+});
+
+Deno.test("groq: 429 con attesa breve => un solo nuovo tentativo", async () => {
+  const calls = { n: 0 };
+  const limited = { status: 429, body: { error: { message: "rate limit" } }, headers: { "retry-after": "0.01" } };
+  const res = await createGroqModel(CONFIG, sequenceFetch([limited, { status: 200, body: OK_BODY }], calls)).complete(
+    "m",
+  );
+  assertEquals(calls.n, 2);
+  assertEquals(res.output, { captions: [{ text: "Ciao", hashtags: [] }] });
+
+  // secondo 429 consecutivo: niente altri tentativi
+  calls.n = 0;
+  const err = await assertRejects(
+    () =>
+      createGroqModel(CONFIG, sequenceFetch([limited, limited, { status: 200, body: OK_BODY }], calls)).complete("m"),
+    AiCallError,
+  );
+  assertEquals(err.code, "ai_unavailable");
+  assertEquals(calls.n, 2);
+
+  // attesa lunga: si rinuncia subito
+  calls.n = 0;
+  const slow = { ...limited, headers: { "retry-after": "30" } };
+  await assertRejects(() =>
+    createGroqModel(CONFIG, sequenceFetch([slow, { status: 200, body: OK_BODY }], calls)).complete("m")
+  );
+  assertEquals(calls.n, 1);
 });

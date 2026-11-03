@@ -179,7 +179,7 @@ export function createHandler(deps: HandlerDeps): (req: Request) => Promise<Resp
         const cost = costMicros(result.modelServed, result.usage);
         const captions = sanitizeCaptions(result.output, { count, allowHashtags });
         if (captions.length < minimumAcceptable(count)) {
-          log("warn", "ai_too_few_captions", { got: captions.length, requested: count });
+          log("warn", "ai_too_few_captions", { model: result.modelServed, got: captions.length, requested: count });
           await deps.store.fail(reservation.generationId, "ai_bad_output", result.usage, cost);
           reservation = undefined;
           throw new AppError("ai_bad_output");
