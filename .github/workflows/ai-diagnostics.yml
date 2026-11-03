@@ -30,7 +30,7 @@ jobs:
           m=$(( ${MINUTES:-120} > 1440 ? 1440 : ${MINUTES:-120} ))
           start=$(date -u -d "-$m minutes" +%Y-%m-%dT%H:%M:%SZ)
           end=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          sql="select timestamp, event_message from function_logs where event_message like '%\"event\":%' order by timestamp desc limit 300"
+          sql="select timestamp, event_message from logs where source = 'function_logs' and event_message like '%\"event\":%' order by timestamp desc limit 300"
           # Endpoint unificato (SQL in dialetto ClickHouse); logs.all è dismesso.
           code=$(curl -sS -G -o /tmp/logs.json -w "%{http_code}" \
             "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_ID/analytics/endpoints/logs" \
